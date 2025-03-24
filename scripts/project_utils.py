@@ -157,13 +157,13 @@ def tuple_batch(batch):
     return tuple(zip(*batch))
 
 
-def verify_dataset(dataset, clss_names, font_file):
+def verify_dataset(dataset, clss_names, font_file, ite=1):
     # Print the number of samples in the training dataset
     pd.Series({
         'Training dataset size:': len(dataset),
     }).to_frame().style.hide(axis='columns')
 
-    for i in range(2):
+    for i in range(ite):
         dataset_sample = dataset[random.randint(0, len(clss_names) - 1)]
 
         # Generate a list of colors with a length equal to the number of labels

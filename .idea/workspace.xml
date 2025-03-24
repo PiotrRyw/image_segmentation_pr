@@ -4,20 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e4fd13e9-cb50-4b82-b942-05ba104fc022" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/image_segmentation_pr.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/config.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/data/img_seg_dataloader.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/img_seg_app.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/img_seg_dataset.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/img_seg_model.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/project_utils.py" afterDir="false" />
+    <list default="true" id="e4fd13e9-cb50-4b82-b942-05ba104fc022" name="Changes" comment="delevoping basics">
+      <change afterPath="$PROJECT_DIR$/scripts/test_model.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/train.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/config.json" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/config.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/img_seg_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/img_seg_app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/img_seg_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/img_seg_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/project_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/project_utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -98,6 +93,30 @@
       <option name="presentableId" value="Default" />
       <updated>1742283859328</updated>
     </task>
+    <task id="LOCAL-00001" summary="delevoping basics">
+      <option name="closed" value="true" />
+      <created>1742811311004</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1742811311004</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="delevoping basics" />
+    <option name="LAST_COMMIT_MESSAGE" value="delevoping basics" />
   </component>
 </project>
