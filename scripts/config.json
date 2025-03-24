@@ -1,0 +1,14 @@
+{
+  "Author": "Piotr Rywczak",
+  "App_data": {
+    "dataset_path": "test"
+  },
+  "Training_settings": {
+    "batch_size": 64,
+    "number_of_epochs": 1,
+    "train_data_size": 256,
+    "train_data_path": "data",
+    "test_data_path": "data",
+    "model_path": "model.pth"
+  }
+}
