@@ -1,5 +1,3 @@
-import os
-import pandas as pd
 from torch.utils.data import Dataset
 import torch.utils.data
 from torchvision.ops import masks_to_boxes
@@ -114,7 +112,9 @@ class COCOLIVECellDataset(Dataset):
 
         # bbox_list = annotation['bboxes']
         # bbox_tensor = torchvision.ops.box_convert(torch.Tensor(bbox_list), 'xywh', 'xyxy')
-        boxes = BoundingBoxes(bbox_tensor, format='xyxy', canvas_size=image.size[::-1])
+
+        corrected_dims = (image.size[1], image.size[0])
+        boxes = BoundingBoxes(bbox_tensor, format='xyxy', canvas_size=corrected_dims)
 
         # Map labels to their corresponding indices
         annotation_labels = annotation['labels']

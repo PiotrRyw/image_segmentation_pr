@@ -21,16 +21,18 @@ class ImageSegApplication:
         ModelOps.number_of_workers = temp["Training_settings"]["number_of_workers"]
         ModelOps.train_data_size =  temp["Training_settings"]["train_data_size"]
 
-        ModelOps.font_file = temp["Training_settings"]["font_file"]
-        ModelOps.dataset_name = temp["Training_settings"]["dataset_name"]
-        ModelOps.dataset_dir = temp["Training_settings"]["dataset_dir"]
-        ModelOps.images_subdirectory = temp["Training_settings"]["images_subdirectory"]
-        ModelOps.annotation_file_path = temp["Training_settings"]["annotation_file_path"]
         ModelOps.project_name = temp["Training_settings"]["project_name"]
         ModelOps.train_pct = temp["Training_settings"]["training_split_ratio"]
         ModelOps.initial_learning_rate = temp["Training_settings"]["initial_learning_rate"]
 
+        ModelOps.dataset_name = temp["Dataset"]["dataset_name"]
+        ModelOps.dataset_dir = temp["Dataset"]["dataset_dir"]
+        ModelOps.images_subdirectory = temp["Dataset"]["images_subdirectory"]
+        ModelOps.annotation_file_path = temp["Dataset"]["annotation_file_path"]
+
         ModelOps.prediction_threshold = temp["Prediction_settings"]["threshold"]
+
+        ModelOps.font_file = temp["Miscellaneous"]["font_file"]
 
     def show_sample_data(self):
         ModelOps.load_sample_image()

@@ -180,7 +180,7 @@ def verify_dataset(dataset, clss_names, font_file, ite=1):
             image=(dataset_sample[0] * 255).to(dtype=torch.uint8),
             masks=dataset_sample[1]['masks'],
             alpha=0.3,
-            colors=sample_colors
+            # colors=sample_colors
         )
 
         image = tensor_to_pil(annotated_tensor)

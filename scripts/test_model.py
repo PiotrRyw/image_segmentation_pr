@@ -77,8 +77,9 @@ def test_model(model,
     # Get the target labels and bounding boxes
 
     target_labels = annotation_df.loc[file_id]['labels']
+    canvas_dims = (test_img.size[1], test_img.size[0])
     target_bboxes = BoundingBoxes(data=torchvision.ops.masks_to_boxes(target_masks), format='xyxy',
-                                  canvas_size=test_img.size[::-1])
+                                  canvas_size=canvas_dims)
 
     # Convert the test images to a tensor
     img_tensor = transforms.PILToTensor()(test_img)

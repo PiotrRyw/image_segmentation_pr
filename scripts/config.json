@@ -3,22 +3,28 @@
   "App_data": {
     "dataset_path": "test"
   },
-  "Training_settings": {
-    "batch_size": 2,
-    "number_of_epochs": 1,
-    "number_of_workers": 8,
-    "train_data_size": 128,
-    "model_path": "model.pth",
+  "Dataset": {
     "dataset_dir": "D:/dev/livecell-dataset/",
     "dataset_name": "LIVECell_dataset_2021",
     "images_subdirectory": "images/all_images/",
-    "annotation_file_path": "D:/dev/livecell-dataset/LIVECell_dataset_2021/annotations/LIVECell_dataset_size_split/2_train5percent.json",
-    "font_file": "KFOlCnqEu92Fr1MmEU9vAw.ttf",
-    "project_name": "pytorch-mask-r-cnn-instance-segmentation",
+    "annotation_file_path": "D:/dev/livecell-dataset/LIVECell_dataset_2021/annotations/LIVECell_dataset_size_split/2_train5percent.json"
+  },
+  "Training_settings": {
+    "batch_size": 1,
+    "number_of_epochs": 20,
+    "number_of_workers": 8,
+    "train_data_size": 256,
     "training_split_ratio": 0.8,
-    "initial_learning_rate": 2e-6
+    "initial_learning_rate": 2e-3,
+    "model_path": "model.pth",
+    "project_name": "pytorch-mask-r-cnn-instance-segmentation",
+    "image_height": 520,
+    "image_width": 704
   },
   "Prediction_settings": {
-    "threshold": 0.4
+    "threshold": 0.5
+  },
+  "Miscellaneous": {
+    "font_file": "KFOlCnqEu92Fr1MmEU9vAw.ttf"
   }
 }
