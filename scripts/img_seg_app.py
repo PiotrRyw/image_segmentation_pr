@@ -12,27 +12,28 @@ class ImageSegApplication:
         self._load_json_config(ImageSegApplication.config_path)
 
     def _load_json_config(self, path):
+        """Loading config file with settings from path specified in cls field [config_path]"""
         with open(path, "r") as file:
             temp = json.load(file)
         print(temp)
-        ModelOps.batch_size = temp["Training_settings"]["batch_size"]
-        ModelOps.number_of_epochs = temp["Training_settings"]["number_of_epochs"]
-        ModelOps.model_path = temp["Training_settings"]["model_path"]
-        ModelOps.number_of_workers = temp["Training_settings"]["number_of_workers"]
-        ModelOps.train_data_size =  temp["Training_settings"]["train_data_size"]
+        ModelOps.state["batch_size"] = temp["Training_settings"]["batch_size"]
+        ModelOps.state["number_of_epochs"] = temp["Training_settings"]["number_of_epochs"]
+        ModelOps.state["model_path"] = temp["Training_settings"]["model_path"]
+        ModelOps.state["number_of_workers"] = temp["Training_settings"]["number_of_workers"]
+        ModelOps.state["train_data_size"] =  temp["Training_settings"]["train_data_size"]
 
-        ModelOps.project_name = temp["Training_settings"]["project_name"]
-        ModelOps.train_pct = temp["Training_settings"]["training_split_ratio"]
-        ModelOps.initial_learning_rate = temp["Training_settings"]["initial_learning_rate"]
+        ModelOps.state["project_name"] = temp["Training_settings"]["project_name"]
+        ModelOps.state["train_pct"] = temp["Training_settings"]["training_split_ratio"]
+        ModelOps.state["initial_learning_rate"] = temp["Training_settings"]["initial_learning_rate"]
 
-        ModelOps.dataset_name = temp["Dataset"]["dataset_name"]
-        ModelOps.dataset_dir = temp["Dataset"]["dataset_dir"]
-        ModelOps.images_subdirectory = temp["Dataset"]["images_subdirectory"]
-        ModelOps.annotation_file_path = temp["Dataset"]["annotation_file_path"]
+        ModelOps.state["dataset_name"] = temp["Dataset"]["dataset_name"]
+        ModelOps.state["dataset_dir"] = temp["Dataset"]["dataset_dir"]
+        ModelOps.state["images_subdirectory"] = temp["Dataset"]["images_subdirectory"]
+        ModelOps.state["annotation_file_path"] = temp["Dataset"]["annotation_file_path"]
 
-        ModelOps.prediction_threshold = temp["Prediction_settings"]["threshold"]
+        ModelOps.state["prediction_threshold"] = temp["Prediction_settings"]["threshold"]
 
-        ModelOps.font_file = temp["Miscellaneous"]["font_file"]
+        ModelOps.state["font_file"] = temp["Miscellaneous"]["font_file"]
 
     def show_sample_data(self):
         ModelOps.load_sample_image()
@@ -45,3 +46,5 @@ class ImageSegApplication:
         # run training and testing
         ModelOps.run_epochs()
 
+    def run_inference(self):
+        raise NotImplementedError

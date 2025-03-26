@@ -2,19 +2,20 @@ import json
 import random
 import datetime
 from pathlib import Path
+from typing import List, Tuple
+
 import pandas as pd
 
 import torch
-from jinja2 import ModuleLoader
+import torchvision
 from torch import nn
 from torchvision import datasets
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from cjm_pandas_utils.core import markdown_to_pandas
-from torchvision.transforms import ToTensor
-from torch.utils.data import DataLoader
-from torchvision.utils import draw_segmentation_masks, draw_bounding_boxes
+from torch.utils.data import DataLoader, Dataset
+from torchvision.utils import draw_bounding_boxes
 from torchtnt.utils import get_module_summary
 
 from cjm_psl_utils.core import download_file
@@ -47,157 +48,188 @@ class NeuralNetwork(nn.Module):
         return logits
 
 
+class State:
+    """class holding state of the app. It is instanced with a dict with keys and all their values equal to None
+    Each key's value can only be set once"""
+    def __init__(self):
+        self._state_dict = {
+            "batch_size": 0,
+            "number_of_epochs": 0,
+            "number_of_workers": 0,
+            "train_data_size": 0,
+            "training_data": Dataset,
+            "test_data": Dataset,
+            "dataloader_training_data": DataLoader,
+            "dataloader_testing_data": DataLoader,
+            "font_file": "",
+            "colors": [],
+            "initial_learning_rate": 0.0,
+            "dataset_name": "",
+            "dataset_dir": "",
+            "images_subdirectory": "",
+            "annotation_file_path": "",
+            "project_dir": Path(),
+            "model_path": "",
+            "project_name": "",
+            "train_pct": 0,
+            "class_names": [],
+            "dataset_path": Path(),
+            "validation_keys": [],
+            "annotation_df": pd.DataFrame(),
+            "model": torchvision.models,
+            "device": "",
+            "image_dict": {},
+            "prediction_threshold": 0.0,
+            "checkpoint_dir": Path(),
+        }
+        keys = self._state_dict.keys()
+        self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
+
+    def __getitem__(self, item):
+
+        if self._is_set[item] is False:
+            raise RuntimeError(f"property {item} has not been set yet")
+        return self._state_dict[item]
+
+    def __setitem__(self, item, data):
+        if not self._is_set[item]:
+            self._state_dict[item] = data
+            self._is_set[item] = True
+        else:
+            msg = f"property {item} cannot be set as it already has a value of {self._state_dict[item]}"
+            raise RuntimeError(msg)
+
+    def check_properties(self, required):
+        is_good_to_go = True
+        missing_attributes = []
+        for req in required:
+            if not self._is_set[req]:
+                missing_attributes.append(req)
+        return is_good_to_go, missing_attributes
+
+    @property
+    def data_can_be_loaded(self) -> Tuple[bool, List]:
+        required = ["batch_size", "number_of_epochs", "dataset_name", "dataset_dir", "images_subdirectory",
+                    "annotation_file_path", "project_name", "train_pct"
+                    ]
+
+        return self.check_properties(required)
+
+    @property
+    def data_is_loaded(self) -> Tuple[bool, List]:
+        required = ["training_data", "test_data"]
+
+        return self.check_properties(required)
+
+
+class ModelOpsUtils:
+    @staticmethod
+    def make_config_dir_save_color_map(color_map, checkpoint_dir, model_name, dataset_path_name):
+        # Create the checkpoint directory if it does not already exist
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        with open(f"{checkpoint_dir}/{dataset_path_name}-colormap.json", "w") as file:
+            json.dump(color_map, file)
+
+        # Print the name of the file that the color map was written to
+        print(f"{checkpoint_dir}/{dataset_path_name}-colormap.json")
+
+
 class ModelOps:
-    batch_size: int = None
-    number_of_epochs: int = None
-    number_of_workers: int = None
-    train_data_size: int = None
-
-    training_data: datasets = None
-    test_data: datasets = None
-
-    dataloader_training_data = None
-    dataloader_testing_data = None
-
-    font_file: str = None
-
-    colors = None
-    initial_learning_rate: float = None
-
-    dataset_name = None
-    dataset_dir = None
-    images_subdirectory = None
-    annotation_file_path = None
-    project_dir = None
-
-    model_path: str = None
-    project_name: str = None
-
-    train_pct: int = None
-
-    class_names: str = None
-    dataset_path = None
-
-    validation_keys = None
-
-    annotation_df = None
-
-    model = None
-    device = None
-
-    image_dict = None
-
-    prediction_threshold: float = None
-    checkpoint_dir = None
+    state = State()
 
     @staticmethod
     def check_readiness(func):
         def wrapper(*args,**kwargs):
-            requirements = {
-                "batch_size": ModelOps.batch_size,
-                "number_of_epochs": ModelOps.number_of_epochs,
-
-                "dataset_name": ModelOps.dataset_name,
-                "dataset_dir": ModelOps.dataset_dir,
-                "images_subdirectory": ModelOps.images_subdirectory,
-                "annotation_file_path": ModelOps.annotation_file_path,
-                "project_name": ModelOps.project_name,
-                "train_pct": ModelOps.train_pct,
-            }
+            is_ready = True
+            missing = []
+            if func.__name__ == "load_data":
+                data_can_be_loaded, temp = ModelOps.state.data_can_be_loaded
+                is_ready = is_ready and data_can_be_loaded
+                missing.append(temp)
 
             if func.__name__ in ["train", "test"]:
-                requirements["training_data"] = ModelOps.training_data
-                requirements["test_data"] = ModelOps.test_data
+                data_is_loaded, temp = ModelOps.state.data_is_loaded
+                missing.append(temp)
+                is_ready = is_ready and data_is_loaded
 
-
-            missing_attributes = []
-            for entity in requirements.keys():
-                if requirements[entity] is None:
-                    missing_attributes.append(entity)
-
-            if len(missing_attributes):
-                print(f"Missing following: {missing_attributes}")
+            if not is_ready:
+                print(f"Missing following: {missing} from config file")
                 return
 
             func(*args, **kwargs)
 
         return wrapper
 
-    @staticmethod
+    @classmethod
     @check_readiness
-    def load_sample_image():
+    def load_sample_image(cls):
         ModelOps.load_data()
-        verify_dataset(ModelOps.training_data, ModelOps.class_names, ModelOps.font_file, 1)
-        verify_dataset(ModelOps.test_data, ModelOps.class_names, ModelOps.font_file, 1)
+        verify_dataset(cls.state["training_data"], cls.state["class_names"], cls.state["font_file"], 1)
+        verify_dataset(cls.state["test_data"], cls.state["class_names"], cls.state["font_file"], 1)
 
 
 
-    @staticmethod
+    @classmethod
     @check_readiness
-    def train():
+    def train(cls):
         # Training
-        # Generate timestamp for the training session (Year-Month-Day_Hour_Minute_Second)
+
+        # Create timestamp and directory to store training data and best model
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        # Create a directory to store the checkpoints if it does not already exist
+        # Create a color map
+        color_map = {'items': [{'label': label, 'color': color} for label, color in zip(cls.state["class_names"], cls.state["colors"])]}
 
-        checkpoint_dir = Path(ModelOps.project_dir / f"{timestamp}")
-        ModelOps.checkpoint_dir = checkpoint_dir
-
-        # Create the checkpoint directory if it does not already exist
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
+        checkpoint_dir = Path(cls.state["project_dir"] / f"{timestamp}")
+        cls.state["checkpoint_dir"] = checkpoint_dir
         # The model checkpoint path
-        checkpoint_path = checkpoint_dir / f"{ModelOps.model.name}.pth"
+        checkpoint_path = checkpoint_dir / f"{cls.state['model'].name}.pth"
 
-        print(checkpoint_path)
+        ModelOpsUtils.make_config_dir_save_color_map(color_map=color_map,
+                                                     checkpoint_dir=checkpoint_dir,
+                                                     model_name=cls.state['model'].name,
+                                                     dataset_path_name=cls.state["dataset_path"].name,
+                                                     )
 
-        # Create a color map and write it to a JSON file
-        color_map = {'items': [{'label': label, 'color': color} for label, color in zip(ModelOps.class_names, ModelOps.colors)]}
-        with open(f"{checkpoint_dir}/{ModelOps.dataset_path.name}-colormap.json", "w") as file:
-            json.dump(color_map, file)
-
-        # Print the name of the file that the color map was written to
-        print(f"{checkpoint_dir}/{ModelOps.dataset_path.name}-colormap.json")
         # Learning rate for the model
-        lr = ModelOps.initial_learning_rate
+        lr = cls.state["initial_learning_rate"]
 
         # Number of training epochs
-        epochs = ModelOps.number_of_epochs
+        epochs = cls.state["number_of_epochs"]
 
         # AdamW optimizer; includes weight decay for regularization
-        optimizer = torch.optim.AdamW(ModelOps.model.parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(cls.state["model"].parameters(), lr=lr)
 
         # Learning rate scheduler; adjusts the learning rate during training
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                            max_lr=lr,
-                                                           total_steps=epochs * len(ModelOps.dataloader_training_data))
+                                                           total_steps=epochs * len(cls.state["dataloader_training_data"]))
 
-        # If the device is a GPU, empty the cache
         columns = ['epoch', 'train_loss', 'valid_loss', 'learning_rate', 'model_architecture']
         epoch_df = pd.DataFrame({}, columns=columns)
         temp_path = Path(checkpoint_path.parent / 'log.csv')
         epoch_df.to_csv(temp_path, mode='a', index=False, header=True)
 
-        train_loop(model=ModelOps.model,
-                   train_dataloader=ModelOps.dataloader_training_data,
-                   valid_dataloader=ModelOps.dataloader_testing_data,
+        train_loop(model=cls.state["model"],
+                   train_dataloader=cls.state["dataloader_training_data"],
+                   valid_dataloader=cls.state["dataloader_testing_data"],
                    optimizer=optimizer,
                    lr_scheduler=lr_scheduler,
-                   device=torch.device(ModelOps.device),
+                   device=torch.device(cls.state["device"]),
                    epochs=epochs,
                    checkpoint_path=checkpoint_path,
-                   train_sz=ModelOps.train_data_size,
-                   batch_size=ModelOps.batch_size,
-                   initial_learning_rate=ModelOps.initial_learning_rate,
-                   annotation_file_path=ModelOps.annotation_file_path,
+                   train_sz=cls.state["train_data_size"],
+                   batch_size=cls.state["batch_size"],
+                   initial_learning_rate=cls.state["initial_learning_rate"],
+                   annotation_file_path=cls.state["annotation_file_path"],
                    use_scaler=True)
 
 
-    @staticmethod
+    @classmethod
     @check_readiness
-    def test(checkpoint_dir):
-        model = ModelOps.model
+    def test(cls, checkpoint_dir):
+        model = cls.state["model"]
         model.eval()
 
         print(checkpoint_dir)
@@ -207,38 +239,38 @@ class ModelOps:
         draw_learning_graph(log_path)
 
         # Make a copy of the color map in integer format
-        int_colors = [tuple(int(c * 255) for c in color) for color in ModelOps.colors]
+        int_colors = [tuple(int(c * 255) for c in color) for color in cls.state["colors"]]
 
         test_model(model=model,
-                   device=ModelOps.device,
-                   val_keys = ModelOps.validation_keys,
-                   image_dict = ModelOps.image_dict,
-                   train_data_size = ModelOps.train_data_size,
-                   annotation_df = ModelOps.annotation_df,
-                   threshold = ModelOps.prediction_threshold,
-                   class_names = ModelOps.class_names,
+                   device=torch.device(cls.state["device"]),
+                   val_keys = cls.state["validation_keys"],
+                   image_dict = cls.state["image_dict"],
+                   train_data_size = cls.state["train_data_size"],
+                   annotation_df = cls.state["annotation_df"],
+                   threshold = cls.state["prediction_threshold"],
+                   class_names = cls.state["class_names"],
                    int_colors = int_colors,
-                   font=ModelOps.font_file,
+                   font=cls.state["font_file"],
                    )
 
 
-    @staticmethod
+    @classmethod
     @check_readiness
-    def load_data():
+    def load_data(cls):
         # Download the font file
-        download_file(f"https://fonts.gstatic.com/s/roboto/v30/{ModelOps.font_file}", "./")
-        draw_bboxes = partial(draw_bounding_boxes, fill=False, width=2, font=ModelOps.font_file, font_size=10)
+        download_file(f"https://fonts.gstatic.com/s/roboto/v30/{cls.state['font_file']}", "./")
+        draw_bboxes = partial(draw_bounding_boxes, fill=False, width=2, font=cls.state["font_file"], font_size=10)
 
-        dataset_name = ModelOps.dataset_name
-        dataset_dir = ModelOps.dataset_dir
-        images_subdirectory = ModelOps.images_subdirectory
-        annotation_file_path = ModelOps.annotation_file_path
+        dataset_name = cls.state["dataset_name"]
+        dataset_dir = cls.state["dataset_dir"]
+        images_subdirectory = cls.state["images_subdirectory"]
+        annotation_file_path = cls.state["annotation_file_path"]
 
-        ModelOps.dataset_path = Path(f'{dataset_dir}/{dataset_name}')
-        dataset_path = ModelOps.dataset_path
+        cls.state["dataset_path"] = Path(f'{dataset_dir}/{dataset_name}')
+        dataset_path = cls.state["dataset_path"]
         image_directory = dataset_path / images_subdirectory
 
-        ModelOps.project_dir = Path(f"./{ModelOps.project_name}/")
+        cls.state["project_dir"] = Path(f"./{cls.state['project_name']}/")
 
         # Creating a Series with the paths and converting it to a DataFrame for display
         dataframe = pd.Series({
@@ -251,7 +283,7 @@ class ModelOps:
             file.stem: file  # Create a dictionary that maps file names to file paths
             for file in get_image_files(image_directory)  # Get a list of image files in the image directory
         }
-        ModelOps.image_dict = image_dict
+        cls.state["image_dict"] = image_dict
 
         # Print the number of image files
         print(f"Number of Images: {len(image_dict)}")
@@ -310,7 +342,7 @@ class ModelOps:
         annotation_df.rename(columns={'bbox': 'bboxes', 'label': 'labels'}, inplace=True)
 
         print(annotation_df.head())
-        ModelOps.annotation_df = annotation_df
+        cls.state["annotation_df"] = annotation_df
 
         # Get a list of unique labels in the 'annotation_df' DataFrame
         class_names = annotation_df['labels'].explode().unique().tolist()
@@ -318,53 +350,53 @@ class ModelOps:
         # Prepend a `background` class to the list of class names
         class_names = ['background'] + class_names
 
-        ModelOps.class_names = class_names
+        cls.state["class_names"] = class_names
 
         # Create a mapping from class names to class indices
         class_to_idx = {c: i for i, c in enumerate(class_names)}
 
         # Generate a list of colors with a length equal to the number of labels
-        ModelOps.colors = distinctipy.get_colors(len(class_names))
+        cls.state["colors"] = distinctipy.get_colors(len(class_names))
 
         # Make a copy of the color map in integer format
-        int_colors = [tuple(int(c * 255) for c in color) for color in ModelOps.colors]
+        int_colors = [tuple(int(c * 255) for c in color) for color in cls.state["colors"]]
 
         # Get the list of image IDs
-        img_keys = annotation_df.index.tolist()
+        img_keys: List = annotation_df.index.tolist()
         # Shuffle the image IDs
         random.shuffle(img_keys)
 
-        train_split = int(len(img_keys) * ModelOps.train_pct)
+        train_split = int(len(img_keys) * cls.state["train_pct"])
 
         train_keys = img_keys[:train_split]
         val_keys = img_keys[train_split:]
-        ModelOps.validation_keys = val_keys
+        cls.state["validation_keys"] = val_keys
 
-        ModelOps.training_data = COCOLIVECellDataset(train_keys, annotation_df, image_dict, class_to_idx,
+        cls.state["training_data"] = COCOLIVECellDataset(train_keys, annotation_df, image_dict, class_to_idx,
                                         train_tfms)
-        ModelOps.test_data = COCOLIVECellDataset(val_keys, annotation_df, image_dict, class_to_idx,
+        cls.state["test_data"] = COCOLIVECellDataset(val_keys, annotation_df, image_dict, class_to_idx,
                                     train_tfms)
 
         temp = pd.Series({
-            'Training dataset size:': len(ModelOps.training_data),
-            'Validation dataset size:': len(ModelOps.test_data)}
+            'Training dataset size:': len(cls.state["training_data"]),
+            'Validation dataset size:': len(cls.state["test_data"])}
         ).to_frame()
         print(temp.to_string())
 
 
-    @staticmethod
-    def run_epochs():
+    @classmethod
+    def run_epochs(cls):
 
         # select device
         device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-        ModelOps.device = device
+        cls.state["device"] = device
         print(f"Using {device} device")
 
         dtype = torch.float32
         # Model
         # Initialize a Mask R-CNN model with pretrained weights
         model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
-        ModelOps.model = model
+        cls.state["model"] = model
         # model = maskrcnn_resnet50_fpn_v2()
 
         # Get the number of input features for the classifier
@@ -375,11 +407,11 @@ class ModelOps:
         dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
 
         # Replace the box predictor
-        model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=len(ModelOps.class_names))
+        model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=len(cls.state["class_names"]))
 
         # Replace the mask predictor
         model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced,
-                                                           num_classes=len(ModelOps.class_names))
+                                                           num_classes=len(cls.state["class_names"]))
 
         # Set the model's device and data type
         model.to(device=device, dtype=dtype)
@@ -388,7 +420,8 @@ class ModelOps:
         model.device = device
         model.name = 'maskrcnn_resnet50_fpn_v2'
 
-        test_inp = torch.randn(1, 3, 256, 256).to(device)
+        test_inp = tuple(torch.randn(1, 3, 256, 256).to(device))
+        print(test_inp)
 
         summary_df = markdown_to_pandas(f"{get_module_summary(model.eval(), [test_inp])}")
 
@@ -401,11 +434,11 @@ class ModelOps:
 
         # DataLoader
         # Set the training batch size
-        bs = ModelOps.batch_size
+        bs = cls.state["batch_size"]
 
         # Set the number of worker processes for loading data.
         # num_workers = multiprocessing.cpu_count() // 2
-        num_workers = ModelOps.number_of_workers
+        num_workers = cls.state["number_of_workers"]
 
         # Define parameters for DataLoader
         data_loader_params = {
@@ -421,17 +454,17 @@ class ModelOps:
         }
 
         # Create DataLoader for training data. Data is shuffled for every epoch.
-        ModelOps.dataloader_training_data = DataLoader(ModelOps.training_data, **data_loader_params, shuffle=True)
+        cls.state["dataloader_training_data"] = DataLoader(cls.state["training_data"], **data_loader_params, shuffle=True)
 
         # Create DataLoader for validation data. Shuffling is not necessary for validation data.
-        ModelOps.dataloader_testing_data = DataLoader(ModelOps.test_data, **data_loader_params)
+        cls.state["dataloader_testing_data"] = DataLoader(cls.state["test_data"], **data_loader_params)
 
         # Print the number of batches in the training and validation DataLoaders
         temp = pd.Series({
-            'Number of batches in train DataLoader:': len(ModelOps.dataloader_training_data),
-            'Number of batches in validation DataLoader:': len(ModelOps.dataloader_testing_data)}
+            'Number of batches in train DataLoader:': len(cls.state["dataloader_training_data"]),
+            'Number of batches in validation DataLoader:': len(cls.state["dataloader_testing_data"])}
         ).to_frame().style.hide(axis='columns')
 
-        ModelOps.train()
+        cls.train()
 
-        ModelOps.test(ModelOps.checkpoint_dir)
+        cls.test(cls.state["checkpoint_dir"])
