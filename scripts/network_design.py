@@ -16,10 +16,12 @@ class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
         super().__init__()
 
         # Model
+
         # Initialize a Mask R-CNN model with pretrained weights
         if model_path == "":
-            self.model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
-
+            self.model = maskrcnn_resnet50_fpn_v2()
+            # self.model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
+        self.model.name = 'maskrcnn_resnet50_fpn_v2'
         # Get the number of input features for the classifier
         in_features_box = self.model.roi_heads.box_predictor.cls_score.in_features
         in_features_mask = self.model.roi_heads.mask_predictor.conv5_mask.in_channels
