@@ -7,11 +7,11 @@
     "dataset_dir": "D:/dev/livecell-dataset/",
     "dataset_name": "LIVECell_dataset_2021",
     "images_subdirectory": "images/all_images/",
-    "annotation_file_path": "D:/dev/livecell-dataset/LIVECell_dataset_2021/annotations/LIVECell_dataset_size_split/2_train5percent.json"
+    "annotation_file_path": "D:/dev/livecell-dataset/LIVECell_dataset_2021/annotations/LIVECell_dataset_size_split/3_train25percent.json"
   },
   "Training_settings": {
-    "batch_size": 1,
-    "number_of_epochs": 20,
+    "batch_size": 2,
+    "number_of_epochs": 40,
     "number_of_workers": 8,
     "train_data_size": 256,
     "training_split_ratio": 0.8,
@@ -19,10 +19,13 @@
     "model_path": "model.pth",
     "project_name": "pytorch-mask-r-cnn-instance-segmentation",
     "image_height": 520,
-    "image_width": 704
+    "image_width": 704,
+    "class_names": ["background", "cell"]
   },
   "Prediction_settings": {
-    "threshold": 0.5
+    "threshold": 0.2,
+    "prediction_model_path": "D:/dev/image_segmentation_pr/pytorch-mask-r-cnn-instance-segmentation/2025-03-26_13-45-16/maskrcnn_resnet50_fpn_v2.pth",
+    "image_path": "D:\\dev\\university\\astrocyty_rana\\snapshot.tiff"
   },
   "Miscellaneous": {
     "font_file": "KFOlCnqEu92Fr1MmEU9vAw.ttf"
