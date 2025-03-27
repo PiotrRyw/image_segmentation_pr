@@ -29,29 +29,14 @@ from scripts.test_model import test_model
 from scripts.train import train_loop
 
 
-# Define model
-class NeuralNetwork(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.flatten = nn.Flatten()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(28*28, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 10)
-        )
-
-    def forward(self, x):
-        x = self.flatten(x)
-        logits = self.linear_relu_stack(x)
-        return logits
-
-
 class State:
     """class holding state of the app. It is instanced with a dict with keys and all their values equal to None
-    Each key's value can only be set once"""
+    Each key's value can ONLY be SET ONCE
+    """
     def __init__(self):
+        """State object holds values of properties in _state_dict [dict] alongside a _is_set [dict] which keeps track
+        whether a property has been set since the creation of State object.
+        """
         self._state_dict = {
             "batch_size": 0,
             "number_of_epochs": 0,
@@ -81,12 +66,12 @@ class State:
             "image_dict": {},
             "prediction_threshold": 0.0,
             "checkpoint_dir": Path(),
+            "prediction_model_path": ""
         }
         keys = self._state_dict.keys()
         self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
 
     def __getitem__(self, item):
-
         if self._is_set[item] is False:
             raise RuntimeError(f"property {item} has not been set yet")
         return self._state_dict[item]
@@ -171,7 +156,7 @@ class ModelOps:
 
 
     @classmethod
-    @check_readiness
+    # @check_readiness
     def train(cls):
         # Training
 
@@ -181,10 +166,10 @@ class ModelOps:
         # Create a color map
         color_map = {'items': [{'label': label, 'color': color} for label, color in zip(cls.state["class_names"], cls.state["colors"])]}
 
-        checkpoint_dir = Path(cls.state["project_dir"] / f"{timestamp}")
+        checkpoint_dir: Path = cls.state["project_dir"] / timestamp
         cls.state["checkpoint_dir"] = checkpoint_dir
         # The model checkpoint path
-        checkpoint_path = checkpoint_dir / f"{cls.state['model'].name}.pth"
+        checkpoint_path: Path = checkpoint_dir / f"{cls.state['model'].name}.pth"
 
         ModelOpsUtils.make_config_dir_save_color_map(color_map=color_map,
                                                      checkpoint_dir=checkpoint_dir,
@@ -468,3 +453,41 @@ class ModelOps:
         cls.train()
 
         cls.test(cls.state["checkpoint_dir"])
+
+    @classmethod
+    def test_on_random_sample(cls):
+        cls.load_data()
+        model = cls.state["model"]
+
+        # select device
+        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+        cls.state["device"] = device
+        print(f"Using {device} device")
+
+        dtype = torch.float32
+        # Model
+        # Initialize a Mask R-CNN model with pretrained weights
+        model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
+        cls.state["model"] = model
+        # model = maskrcnn_resnet50_fpn_v2()
+
+        # Get the number of input features for the classifier
+        in_features_box = model.roi_heads.box_predictor.cls_score.in_features
+        in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+
+        # Get the number of output channels for the Mask Predictor
+        dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
+
+        # Replace the box predictor
+        model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=len(cls.state["class_names"]))
+
+        # Replace the mask predictor
+        model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced,
+                                                           num_classes=len(cls.state["class_names"]))
+
+        model.load_state_dict(torch.load(cls.state["prediction_model_path"]))
+
+        # Set the model's device and data type
+        model.to(device=device, dtype=dtype)
+
+        cls.test()
