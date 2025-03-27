@@ -23,8 +23,8 @@ from cjm_psl_utils.core import download_file
 from functools import partial
 from distinctipy import distinctipy
 
-from scripts.img_seg_dataset import COCOLIVECellDataset
-from scripts.project_utils import get_image_files, train_tfms, verify_dataset, tuple_batch, draw_learning_graph
+from scripts.img_seg_dataset import COCOLIVECellDataset, DatasetUtils
+from scripts.project_utils import train_tfms, verify_dataset, tuple_batch, draw_learning_graph
 from scripts.segmenting_images import segment_image
 from scripts.test_model import test_model
 from scripts.train import train_loop
@@ -58,7 +58,7 @@ class State:
             "project_dir": Path(),
             "model_path": "",
             "project_name": "",
-            "train_pct": 0,
+            "train_pct": 0.0,
             "class_names": [],
             "dataset_path": Path(),
             "validation_keys": [],
@@ -121,7 +121,6 @@ class ModelOpsUtils:
 
         # Print the name of the file that the color map was written to
         print(f"{checkpoint_dir}/{dataset_path_name}-colormap.json")
-
 
 class ModelOps:
     state = State()
@@ -200,8 +199,10 @@ class ModelOps:
         # Number of training epochs
         epochs = cls.state["number_of_epochs"]
 
+        model = cls.state["model"].model
+
         # AdamW optimizer; includes weight decay for regularization
-        optimizer = torch.optim.AdamW(cls.state["model"].parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
         # Learning rate scheduler; adjusts the learning rate during training
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
@@ -213,7 +214,7 @@ class ModelOps:
         temp_path = Path(checkpoint_path.parent / 'log.csv')
         epoch_df.to_csv(temp_path, mode='a', index=False, header=True)
 
-        train_loop(model=cls.state["model"],
+        train_loop(model=model,
                    train_dataloader=cls.state["dataloader_training_data"],
                    valid_dataloader=cls.state["dataloader_testing_data"],
                    optimizer=optimizer,
@@ -231,7 +232,7 @@ class ModelOps:
     @classmethod
     @check_readiness
     def test(cls, checkpoint_dir):
-        model = cls.state["model"]
+        model = cls.state["model"].model
         model.eval()
 
         print(checkpoint_dir)
@@ -267,6 +268,8 @@ class ModelOps:
         dataset_dir = cls.state["dataset_dir"]
         images_subdirectory = cls.state["images_subdirectory"]
         annotation_file_path = cls.state["annotation_file_path"]
+        class_names = cls.state["class_names"]
+        train_pct = cls.state["train_pct"]
 
         cls.state["dataset_path"] = Path(f'{dataset_dir}/{dataset_name}')
         dataset_path = cls.state["dataset_path"]
@@ -280,92 +283,17 @@ class ModelOps:
             "Annotation File": annotation_file_path}).to_frame().style.hide(axis='columns')
         print(dataframe.to_string())
 
-        # Get all image files in the 'img_dir' directory
-        image_dict = {
-            file.stem: file  # Create a dictionary that maps file names to file paths
-            for file in get_image_files(image_directory)  # Get a list of image files in the image directory
-        }
+        image_dict, annotation_df, train_keys, val_keys, class_to_idx = DatasetUtils.create_image_and_annotation_dict(
+            image_directory,
+            annotation_file_path,
+            class_names,
+            train_pct,
+        )
+
         cls.state["image_dict"] = image_dict
-
-        # Print the number of image files
-        print(f"Number of Images: {len(image_dict)}")
-
-        # Read the JSON file into a DataFrame, assuming the JSON is oriented by index
-        annotation_file_df = pd.read_json(annotation_file_path, orient='index').transpose()
-        #print(annotation_file_df.head())
-
-        categories_df = annotation_file_df['categories'].dropna().apply(pd.Series)
-        categories_df.set_index('id', inplace=True)
-        #print(categories_df)
-
-        # Extract and transform the 'images' section of the data
-        # This DataFrame contains image details like file name, height, width, and image ID
-        images_df = annotation_file_df['images'].to_frame()['images'].apply(pd.Series)[
-            ['file_name', 'height', 'width', 'id']]
-        print(images_df.head())
-
-        # Extract and transform the 'annotations' section of the data
-        # This DataFrame contains annotation details like image ID, segmentation points, bounding box, and category ID
-        annotations_df = annotation_file_df['annotations'].to_frame()['annotations'].apply(pd.Series)[
-            ['image_id', 'segmentation', 'bbox', 'category_id']]
-        pd.options.display.max_columns = None
-        pd.options.display.width = 0
-        print(annotations_df.head())
-
-        # Map 'category_id' in annotations DataFrame to category name using categories DataFrame
-        annotations_df['label'] = annotations_df['category_id'].apply(lambda x: categories_df.loc[x]['name'])
-        print(annotations_df.head())
-
-        # Merge annotations DataFrame with images DataFrame on their image ID
-        annotation_df = pd.merge(annotations_df, images_df, left_on='image_id', right_on='id')
-        print(annotation_df.head())
-
-        # Remove old 'id' column post-merge
-        annotation_df.drop('id', axis=1, inplace=True)
-
-        # Extract the image_id from the file_name (assuming file_name contains the image_id)
-        annotation_df['image_id'] = annotation_df['file_name'].apply(lambda x: x.split('.')[0])
-
-        # Set 'image_id' as the index for the DataFrame
-        annotation_df.set_index('image_id', inplace=True)
-
-        # Group the data by 'image_id' and aggregate information
-        annotation_df = annotation_df.groupby('image_id').agg({
-            'segmentation': list,
-            'bbox': list,
-            'category_id': list,
-            'label': list,
-            'file_name': 'first',
-            'height': 'first',
-            'width': 'first'
-        })
-
-        # Rename columns for clarity
-        annotation_df.rename(columns={'bbox': 'bboxes', 'label': 'labels'}, inplace=True)
-
-        print(annotation_df.head())
         cls.state["annotation_df"] = annotation_df
-
-        class_names = cls.state["class_names"]
-
-        # Create a mapping from class names to class indices
-        class_to_idx = {c: i for i, c in enumerate(class_names)}
-
-        # Generate a list of colors with a length equal to the number of labels
         cls.state["colors"] = distinctipy.get_colors(len(class_names))
 
-        # Make a copy of the color map in integer format
-        int_colors = [tuple(int(c * 255) for c in color) for color in cls.state["colors"]]
-
-        # Get the list of image IDs
-        img_keys: List = annotation_df.index.tolist()
-        # Shuffle the image IDs
-        random.shuffle(img_keys)
-
-        train_split = int(len(img_keys) * cls.state["train_pct"])
-
-        train_keys = img_keys[:train_split]
-        val_keys = img_keys[train_split:]
         cls.state["validation_keys"] = val_keys
 
         cls.state["training_data"] = COCOLIVECellDataset(train_keys, annotation_df, image_dict, class_to_idx,
@@ -386,7 +314,7 @@ class ModelOps:
         # select device
         cls.setup_model()
         device = cls.state["device"]
-        model = cls.state["model"]
+        model = cls.state["model"].model
 
         test_inp = tuple(torch.randn(1, 3, 256, 256).to(device))
         print(test_inp)
