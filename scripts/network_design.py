@@ -1,3 +1,45 @@
+import torch
+from torch import nn
+from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+
+
+class NeuralNetworkOpsBaseClass:
+    def __init__(self):
+        self.name = "Base Class"
+        self.model = maskrcnn_resnet50_fpn_v2()
+
+
+class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
+    def __init__(self, device, dtype, number_of_classes, model_path=""):
+        super().__init__()
+
+        # Model
+        # Initialize a Mask R-CNN model with pretrained weights
+        if model_path == "":
+            self.model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
+
+        # Get the number of input features for the classifier
+        in_features_box = self.model.roi_heads.box_predictor.cls_score.in_features
+        in_features_mask = self.model.roi_heads.mask_predictor.conv5_mask.in_channels
+
+        # Get the number of output channels for the Mask Predictor
+        dim_reduced = self.model.roi_heads.mask_predictor.conv5_mask.out_channels
+
+        # Replace the box predictor
+        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=number_of_classes)
+
+        # Replace the mask predictor
+        self.model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced,
+                                                           num_classes=number_of_classes)
+
+        # Set the model's device and data type
+        self.model.to(device=device, dtype=dtype)
+
+        if model_path != "":
+            self.model.load_state_dict(torch.load(model_path))
+
 
 # Define model
 class NeuralNetwork(nn.Module):
@@ -16,3 +58,4 @@ class NeuralNetwork(nn.Module):
         x = self.flatten(x)
         logits = self.linear_relu_stack(x)
         return logits
+

@@ -1,7 +1,7 @@
 import json
 import torch
 
-from scripts.img_seg_model import NeuralNetwork, ModelOps
+from scripts.img_seg_model import ModelOps
 
 
 class ImageSegApplication:
@@ -35,6 +35,10 @@ class ImageSegApplication:
 
         ModelOps.state["font_file"] = temp["Miscellaneous"]["font_file"]
 
+        ModelOps.state["prediction_model_path"] = temp["Prediction_settings"]["prediction_model_path"]
+        ModelOps.state["image_path"] = temp["Prediction_settings"]["image_path"]
+        ModelOps.state["class_names"] = temp["Training_settings"]["class_names"]
+
     def show_sample_data(self):
         ModelOps.load_sample_image()
 
@@ -47,4 +51,7 @@ class ImageSegApplication:
         ModelOps.run_epochs()
 
     def run_inference(self):
-        raise NotImplementedError
+        ModelOps.infer()
+
+    def test_sample(self):
+        ModelOps.test_on_random_sample()

@@ -25,8 +25,10 @@ from distinctipy import distinctipy
 
 from scripts.img_seg_dataset import COCOLIVECellDataset
 from scripts.project_utils import get_image_files, train_tfms, verify_dataset, tuple_batch, draw_learning_graph
+from scripts.segmenting_images import segment_image
 from scripts.test_model import test_model
 from scripts.train import train_loop
+from scripts.network_design import NeuralNetworkOpsBaseClass, NeuralNetworkOps
 
 
 class State:
@@ -62,11 +64,12 @@ class State:
             "validation_keys": [],
             "annotation_df": pd.DataFrame(),
             "model": torchvision.models,
-            "device": "",
+            "device": NeuralNetworkOpsBaseClass(),
             "image_dict": {},
             "prediction_threshold": 0.0,
             "checkpoint_dir": Path(),
-            "prediction_model_path": ""
+            "prediction_model_path": "",
+            "image_path": ""
         }
         keys = self._state_dict.keys()
         self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
@@ -153,7 +156,21 @@ class ModelOps:
         verify_dataset(cls.state["training_data"], cls.state["class_names"], cls.state["font_file"], 1)
         verify_dataset(cls.state["test_data"], cls.state["class_names"], cls.state["font_file"], 1)
 
+    @classmethod
+    def setup_model(cls, model_path=""):
+        # select device
+        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+        cls.state["device"] = device
+        print(f"Using {device} device")
 
+        dtype = torch.float32
+        # Model
+        cls.state["model"] = NeuralNetworkOps(
+            device=device,
+            dtype=dtype,
+            number_of_classes=len(cls.state["class_names"]),
+            model_path=model_path
+        )
 
     @classmethod
     # @check_readiness
@@ -329,13 +346,7 @@ class ModelOps:
         print(annotation_df.head())
         cls.state["annotation_df"] = annotation_df
 
-        # Get a list of unique labels in the 'annotation_df' DataFrame
-        class_names = annotation_df['labels'].explode().unique().tolist()
-
-        # Prepend a `background` class to the list of class names
-        class_names = ['background'] + class_names
-
-        cls.state["class_names"] = class_names
+        class_names = cls.state["class_names"]
 
         # Create a mapping from class names to class indices
         class_to_idx = {c: i for i, c in enumerate(class_names)}
@@ -373,37 +384,9 @@ class ModelOps:
     def run_epochs(cls):
 
         # select device
-        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-        cls.state["device"] = device
-        print(f"Using {device} device")
-
-        dtype = torch.float32
-        # Model
-        # Initialize a Mask R-CNN model with pretrained weights
-        model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
-        cls.state["model"] = model
-        # model = maskrcnn_resnet50_fpn_v2()
-
-        # Get the number of input features for the classifier
-        in_features_box = model.roi_heads.box_predictor.cls_score.in_features
-        in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
-
-        # Get the number of output channels for the Mask Predictor
-        dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
-
-        # Replace the box predictor
-        model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=len(cls.state["class_names"]))
-
-        # Replace the mask predictor
-        model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced,
-                                                           num_classes=len(cls.state["class_names"]))
-
-        # Set the model's device and data type
-        model.to(device=device, dtype=dtype)
-
-        # Add attributes to store the device and model name for later reference
-        model.device = device
-        model.name = 'maskrcnn_resnet50_fpn_v2'
+        cls.setup_model()
+        device = cls.state["device"]
+        model = cls.state["model"]
 
         test_inp = tuple(torch.randn(1, 3, 256, 256).to(device))
         print(test_inp)
@@ -457,37 +440,19 @@ class ModelOps:
     @classmethod
     def test_on_random_sample(cls):
         cls.load_data()
-        model = cls.state["model"]
+        cls.setup_model()
+        cls.test(cls.state["checkpoint_dir"])
 
-        # select device
-        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-        cls.state["device"] = device
-        print(f"Using {device} device")
+    @classmethod
+    def infer(cls):
 
-        dtype = torch.float32
-        # Model
-        # Initialize a Mask R-CNN model with pretrained weights
-        model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
-        cls.state["model"] = model
-        # model = maskrcnn_resnet50_fpn_v2()
+        cls.setup_model(cls.state["prediction_model_path"])
 
-        # Get the number of input features for the classifier
-        in_features_box = model.roi_heads.box_predictor.cls_score.in_features
-        in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+        model_settings = {
+            "class_names": cls.state["class_names"],
+            "train_size": cls.state["train_data_size"],
+            "device": cls.state["device"],
+            "threshold": cls.state["prediction_threshold"]
+        }
+        segment_image(model=cls.state["model"], image_path=cls.state["image_path"], model_settings=model_settings)
 
-        # Get the number of output channels for the Mask Predictor
-        dim_reduced = model.roi_heads.mask_predictor.conv5_mask.out_channels
-
-        # Replace the box predictor
-        model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=len(cls.state["class_names"]))
-
-        # Replace the mask predictor
-        model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced,
-                                                           num_classes=len(cls.state["class_names"]))
-
-        model.load_state_dict(torch.load(cls.state["prediction_model_path"]))
-
-        # Set the model's device and data type
-        model.to(device=device, dtype=dtype)
-
-        cls.test()
