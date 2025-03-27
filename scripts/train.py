@@ -124,7 +124,8 @@ def train_loop(model,
         None
     """
     # Initialize a gradient scaler for mixed-precision training if the device is a CUDA GPU
-    scaler = torch.cuda.amp.GradScaler() if device.type == 'cuda' and use_scaler else None
+    scaler = torch.amp.GradScaler('cuda') if device.type == 'cuda' and use_scaler else None
+
     best_loss = float('inf')  # Initialize the best validation loss
 
     # Loop over the epochs
