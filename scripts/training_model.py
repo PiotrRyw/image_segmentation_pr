@@ -1,6 +1,8 @@
 import csv
 import json
 import math
+from multiprocessing import Queue
+
 from cjm_pytorch_utils.core import move_data_to_device
 from pathlib import Path
 from tqdm import tqdm
@@ -103,7 +105,7 @@ def train_loop(model,
                batch_size,
                initial_learning_rate,
                annotation_file_path,
-
+               queue: Queue,
                use_scaler=False,
                ):
     """
@@ -122,6 +124,7 @@ def train_loop(model,
 
     Returns:
         None
+        :param queue:
     """
     # Initialize a gradient scaler for mixed-precision training if the device is a CUDA GPU
     scaler = torch.amp.GradScaler('cuda') if device.type == 'cuda' and use_scaler else None
@@ -149,6 +152,8 @@ def train_loop(model,
         epoch_df = pd.DataFrame(epoch_metadata)
         temp_path = Path(checkpoint_path.parent / 'log.csv')
         epoch_df.to_csv(temp_path, mode='a', index=False, header=False)
+
+        queue.put(temp_path)
 
         # If the validation loss is lower than the best validation loss seen so far, save the model checkpoint
         if valid_loss < best_loss:
