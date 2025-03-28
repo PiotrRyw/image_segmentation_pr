@@ -60,6 +60,17 @@ def create_polygon_mask(image_size, vertices):
 
 
 def correct_rotated_masks(masks_list):
+    for i in range(len(masks_list)):
+        if masks_list[i].height == 520 and masks_list[i].width == 704:
+            continue
+        else:
+            mask_img = masks_list[i]
+            mask_img = mask_img.rotate(90, expand=True)
+            mask_img = mask_img.transpose(Image.FLIP_TOP_BOTTOM)
+            masks_list[i] = mask_img
+
+
+def correct_rotated_masks_old(masks_list):
     good_list = []
     for mask_img in masks_list:
         if mask_img.height == 520 and mask_img.width == 704:
@@ -95,27 +106,27 @@ def get_image_files(img_dir: Path,  # The directory to search for image files
 
 
 # Create a RandomIoUCrop object
-iou_crop = CustomRandomIoUCrop(min_scale=0.25,
+iou_crop = CustomRandomIoUCrop(min_scale=0.5,
                                max_scale=1,
                                min_aspect_ratio=0.75,
                                max_aspect_ratio=1.5,
                                sampler_options=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-                               trials=40,
+                               trials=60,
                                jitter_factor=0.1)
 
 # Create a `ResizeMax` object
 resize_max = ResizeMax(max_sz=TRAIN_SZ)
 
 # Create a `PadSquare` object
-pad_square = PadSquare(shift=True, fill=0)
+pad_square = PadSquare(shift=True, fill=135)
 
 data_aug_tfms = transforms.Compose(
     transforms=[
         iou_crop,
-        # transforms.ColorJitter(
-        #         brightness=(0.9, 1.1),
-        #         contrast=(1.0, 1.1)
-        # ),
+        transforms.ColorJitter(
+                brightness=(0.9, 1.1),
+                contrast=(0.9, 1.1)
+        ),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.5),
         # transforms.RandomRotation(degrees=90)
@@ -152,6 +163,10 @@ def draw_learning_graph(data):
     training_data.plot()
     plt.show()
 
+def prepare_learning_graph(data):
+    all_data = pd.read_csv(data, index_col=0)
+    training_data = all_data[["train_loss", "valid_loss"]]
+    return training_data
 
 def tuple_batch(batch):
     return tuple(zip(*batch))
