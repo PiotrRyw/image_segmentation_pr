@@ -38,14 +38,14 @@ def segment_image(model, image_path, model_settings):
     # Make a copy of the color map in integer format
     int_colors = [tuple(int(c * 255) for c in color) for color in colors]
 
-    model.model.eval()
-    model.model.to(device)
+    model.eval()
+    model.to(device)
 
     input_tensor = transforms.Compose([transforms.ToImage(), transforms.ToDtype(torch.float32, scale=True)])(input_img)[
         None].to(device)
 
     with torch.no_grad():
-        model_output = model.model(input_tensor)
+        model_output = model(input_tensor)
 
     # Move model output to the CPU
     model_output = move_data_to_device(model_output, 'cpu')
@@ -90,11 +90,11 @@ def segment_image(model, image_path, model_settings):
         # )
 
         # Print the prediction data as a Pandas DataFrame for easy formatting
-        pd.Series({
-            "Predicted BBoxes:": [f"{label}:{bbox}" for label, bbox in
-                                  zip(pred_labels, pred_bboxes.round(decimals=3).numpy())],
-            "Confidence Scores:": [f"{label}: {prob * 100:.2f}%" for label, prob in zip(pred_labels, pred_scores)]
-        }).to_frame().style.hide(axis='columns')
+        # pd.Series({
+        #     "Predicted BBoxes:": [f"{label}:{bbox}" for label, bbox in
+        #                           zip(pred_labels, pred_bboxes.round(decimals=3).numpy())],
+        #     "Confidence Scores:": [f"{label}: {prob * 100:.2f}%" for label, prob in zip(pred_labels, pred_scores)]
+        # }).to_frame().style.hide(axis='columns')
 
         image_segmented = tensor_to_pil(annotated_tensor)
         Image.fromarray(np.hstack((np.array(input_img), np.array(image_segmented)))).show()
