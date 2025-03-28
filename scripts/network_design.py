@@ -7,14 +7,13 @@ from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
 class NeuralNetworkOpsBaseClass:
     def __init__(self):
-        self.name = "Base Class"
         self.model = maskrcnn_resnet50_fpn_v2()
+        self.model.name = "base_class_maskrcnn_resnet50_fpn_v2"
 
 
 class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
     def __init__(self, device, dtype, number_of_classes, model_path=""):
         super().__init__()
-
         # Model
 
         # Initialize a Mask R-CNN model with pretrained weights
