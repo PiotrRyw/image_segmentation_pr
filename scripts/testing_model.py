@@ -69,7 +69,7 @@ def test_model(model,
             raise Exception("wrong data in annotation")
 
     # something is wrong with some annotations - the dimension is flipped. Drop them and print out
-    mask_imgs = correct_rotated_masks(mask_imgs)
+    correct_rotated_masks(mask_imgs)
 
     # Convert mask images to tensors
     target_masks = torch.concat([Mask(transforms.PILToTensor()(mask_img), dtype=torch.bool) for mask_img in mask_imgs])
