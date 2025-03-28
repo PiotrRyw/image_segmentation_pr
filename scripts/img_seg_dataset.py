@@ -96,26 +96,15 @@ class COCOLIVECellDataset(Dataset):
         # Process segmentation polygons
         annotation_data = annotation['segmentation']
 
-        times = {
-            "polygon": 0.0,
-            "rle:": 0.0
-        }
-
         mask_imgs_cpm = []
         mask_imgs_rle = []
         for single_annotation in annotation_data:
             if type(single_annotation) is list:
-                _time_start = time.time()
                 mask_imgs_cpm.append(create_polygon_mask(image.size, single_annotation[0]))
-                _time_end = time.time()
-                times["polygon"] += _time_end - _time_start
             elif type(single_annotation) is dict:
-                _time_start = time.time()
                 mask_imgs_rle.append(rle2mask(single_annotation)) # function expects a dictionary in a form of
                 # {"counts": [list being uncompressed image], "image size": [width, height]}, so we can just pass the
                 # full annotation as it is in a correct form already
-                _time_end = time.time()
-                times["rle"] += _time_end - _time_start
             else:
                 raise RuntimeError(f"Wrong annotation data for file with id {filepath}")
 
@@ -151,7 +140,10 @@ class DatasetUtils:
         while not os.path.exists("cache") and max_it > 0:
             os.chdir("..")
             max_it -= 1
+
         os.chdir("cache/annotation_dataframe")
+
+
 
     @classmethod
     def check_cached(cls, file_path):
@@ -184,6 +176,57 @@ class DatasetUtils:
 
 
     @classmethod
+    def create_dataframe(cls, annotation_file_df):
+        categories_df = annotation_file_df['categories'].dropna().apply(pd.Series)
+        categories_df.set_index('id', inplace=True)
+        # print(categories_df)
+
+        # Extract and transform the 'images' section of the data
+        # This DataFrame contains image details like file name, height, width, and image ID
+        images_df = annotation_file_df['images'].to_frame()['images'].apply(pd.Series)[
+            ['file_name', 'height', 'width', 'id']]
+
+        print(f"Extracted image file data")
+
+        # Extract and transform the 'annotations' section of the data
+        # This DataFrame contains annotation details like image ID, segmentation points, bounding box, and category ID
+        annotations_df = annotation_file_df['annotations'].to_frame()['annotations'].apply(pd.Series)[
+            ['image_id', 'segmentation', 'bbox', 'category_id']]
+        pd.options.display.max_columns = None
+        pd.options.display.width = 0
+
+        # Map 'category_id' in annotations DataFrame to category name using categories DataFrame
+        annotations_df['label'] = annotations_df['category_id'].apply(lambda x: categories_df.loc[x]['name'])
+
+        # Merge annotations DataFrame with images DataFrame on their image ID
+        annotation_df = pd.merge(annotations_df, images_df, left_on='image_id', right_on='id')
+
+        # Remove old 'id' column post-merge
+        annotation_df.drop('id', axis=1, inplace=True)
+
+        # Extract the image_id from the file_name (assuming file_name contains the image_id)
+        annotation_df['image_id'] = annotation_df['file_name'].apply(lambda x: x.split('.')[0])
+
+        # Set 'image_id' as the index for the DataFrame
+        annotation_df.set_index('image_id', inplace=True)
+
+        # Group the data by 'image_id' and aggregate information
+        annotation_df = annotation_df.groupby('image_id').agg({
+            'segmentation': list,
+            'bbox': list,
+            'category_id': list,
+            'label': list,
+            'file_name': 'first',
+            'height': 'first',
+            'width': 'first'
+        })
+
+        # Rename columns for clarity
+        annotation_df.rename(columns={'bbox': 'bboxes', 'label': 'labels'}, inplace=True)
+
+        return annotations_df
+
+    @classmethod
     def _private_create_image_and_annotation_dict(cls,
                                                   image_directory: Path,
                                                   annotation_file_path: str,
@@ -191,7 +234,10 @@ class DatasetUtils:
                                                   train_pct: float,
                                                   performance_check = False
                                                   ):
-        _time_first = _time_start = time.time()
+
+        app_working_directory = os.getcwd()
+
+        _time_start = time.time()
         # Get all image files in the 'img_dir' directory
         image_dict = {
             file.stem: file  # Create a dictionary that maps file names to file paths
@@ -199,98 +245,20 @@ class DatasetUtils:
         }
         print(f"Number of Images: {len(image_dict)}")
 
-        if performance_check:
-            # Print the number of image files
-            _time_end = time.time()
-            print(f"time: {_time_end - _time_first}; total: {_time_end - _time_first}")
-            _time_start = time.time()
-
         temp = cls.check_cached(annotation_file_path)
         if temp:  # is not None
             with open(temp, "r") as file:
                 annotation_df = pd.read_json(file)
+            print(f"Loaded cached file {temp}")
         else:
             # Read the JSON file into a DataFrame, assuming the JSON is oriented by index
             annotation_file_df = pd.read_json(annotation_file_path, orient='index').transpose()
             # print(annotation_file_df.head())
             print(f"Loaded file {annotation_file_path}")
-            if performance_check:
-                _time_end = time.time()
-                print(f"time: {_time_end - _time_start}; total: {_time_end - _time_first}")
-                _time_start = time.time()
-
-            categories_df = annotation_file_df['categories'].dropna().apply(pd.Series)
-            categories_df.set_index('id', inplace=True)
-            # print(categories_df)
-
-            if performance_check:
-                _time_end = time.time()
-                print(f"dropped NaN - time: {_time_end - _time_start}")
-                _time_start = time.time()
-
-            # Extract and transform the 'images' section of the data
-            # This DataFrame contains image details like file name, height, width, and image ID
-            images_df = annotation_file_df['images'].to_frame()['images'].apply(pd.Series)[
-                ['file_name', 'height', 'width', 'id']]
-
-            print(f"Extracted image file data")
-            if performance_check:
-                print(images_df.head())
-                _time_end = time.time()
-                print(f"images_df - time: {_time_end - _time_start}; total: {_time_end - _time_first}")
-                _time_start = time.time()
-
-            # Extract and transform the 'annotations' section of the data
-            # This DataFrame contains annotation details like image ID, segmentation points, bounding box, and category ID
-            annotations_df = annotation_file_df['annotations'].to_frame()['annotations'].apply(pd.Series)[
-                ['image_id', 'segmentation', 'bbox', 'category_id']]
-            pd.options.display.max_columns = None
-            pd.options.display.width = 0
-
-            if performance_check:
-                print(annotations_df.head())
-                _time_end = time.time()
-                print(f"Extracted annotations - time: {_time_end - _time_start}; total: {_time_end - _time_first}")
-                _time_start = time.time()
-            # Map 'category_id' in annotations DataFrame to category name using categories DataFrame
-            annotations_df['label'] = annotations_df['category_id'].apply(lambda x: categories_df.loc[x]['name'])
-            if performance_check:
-                print(annotations_df.head())
-
-            # Merge annotations DataFrame with images DataFrame on their image ID
-            annotation_df = pd.merge(annotations_df, images_df, left_on='image_id', right_on='id')
-            if performance_check:
-                print(annotation_df.head())
-
-            # Remove old 'id' column post-merge
-            annotation_df.drop('id', axis=1, inplace=True)
-
-            # Extract the image_id from the file_name (assuming file_name contains the image_id)
-            annotation_df['image_id'] = annotation_df['file_name'].apply(lambda x: x.split('.')[0])
-
-            # Set 'image_id' as the index for the DataFrame
-            annotation_df.set_index('image_id', inplace=True)
-
-            # Group the data by 'image_id' and aggregate information
-            annotation_df = annotation_df.groupby('image_id').agg({
-                'segmentation': list,
-                'bbox': list,
-                'category_id': list,
-                'label': list,
-                'file_name': 'first',
-                'height': 'first',
-                'width': 'first'
-            })
-
-            # Rename columns for clarity
-            annotation_df.rename(columns={'bbox': 'bboxes', 'label': 'labels'}, inplace=True)
-            if performance_check:
-                print(annotation_df.head())
+            annotation_df = cls.create_dataframe(annotation_file_df)
 
         # Create a mapping from class names to class indices
         class_to_idx = {c: i for i, c in enumerate(class_names)}
-
-        # Generate a list of colors with a length equal to the number of labels
 
         # Get the list of image IDs
         img_keys: List = annotation_df.index.tolist()
@@ -302,12 +270,15 @@ class DatasetUtils:
         train_keys = img_keys[:train_split]
         val_keys = img_keys[train_split:]
         print("Loaded image data and annotation data")
+
         if performance_check:
             _time_end = time.time()
-            print(f"Finished the rest - time: {_time_end - _time_start}; total: {_time_end - _time_first}")
+            print(f"Finished the rest - time: {_time_end - _time_start}")
             print(annotation_df.info(memory_usage='deep'))
 
         cls.cache_result(annotation_file_path, annotation_df)
+
+        os.chdir(app_working_directory)
 
         return image_dict, annotation_df, train_keys, val_keys, class_to_idx
 
