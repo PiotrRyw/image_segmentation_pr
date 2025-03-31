@@ -10,12 +10,17 @@ from torchvision.tv_tensors import Mask, BoundingBoxes
 from torchvision.utils import draw_segmentation_masks
 import torch.nn.functional as F
 
+from scripts.preprocess_images import preprocess
+
+
 def segment_image(model, image_path, model_settings):
     class_names = model_settings["class_names"]
     device = model_settings["device"]
     threshold = model_settings["threshold"]
 
-    test_img = Image.open(image_path).convert('RGB')
+    # test_img = Image.open(image_path).convert('RGB')
+    test_img = Image.fromarray(preprocess(np.asarray(Image.open(image_path).convert('RGB'))))
+
     input_img = resize_img(test_img, target_sz=model_settings["train_size"], divisor=1)
     # Calculate the scale between the source image and the resized image
     min_img_scale = min(test_img.size) / min(input_img.size)
