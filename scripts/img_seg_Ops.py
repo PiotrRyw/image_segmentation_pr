@@ -18,7 +18,7 @@ from cjm_psl_utils.core import download_file
 
 
 from scripts.img_seg_dataset import COCOLIVECellDataset, DatasetUtils
-from scripts.project_utils import train_tfms, verify_dataset, tuple_batch, draw_learning_graph
+from scripts.project_utils import train_tfms, verify_dataset, tuple_batch, draw_learning_graph, OrientationCorrection
 from scripts.segmenting_images import segment_image
 from scripts.testing_model import test_model
 from scripts.training_model import train_loop
@@ -64,7 +64,8 @@ class State:
             "checkpoint_dir": Path(),
             "checkpoint_path" : Path(),
             "prediction_model_path": "",
-            "image_path": ""
+            "image_path": "",
+            "orientation_corr": OrientationCorrection(),
         }
         keys = self._state_dict.keys()
         self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
@@ -252,6 +253,7 @@ class ModelOps:
                    class_names = self.state["class_names"],
                    int_colors = int_colors,
                    font=self.state["font_file"],
+                   orientation_corr=self.state["orientation_corr"],
                    )
 
 
@@ -292,10 +294,20 @@ class ModelOps:
 
         self.state["validation_keys"] = val_keys
 
-        self.state["training_data"] = COCOLIVECellDataset(train_keys, annotation_df, image_dict, class_to_idx,
-                                                          train_tfms)
-        self.state["test_data"] = COCOLIVECellDataset(val_keys, annotation_df, image_dict, class_to_idx,
-                                                      train_tfms)
+        self.state["training_data"] = COCOLIVECellDataset(train_keys,
+                                                          annotation_df,
+                                                          image_dict,
+                                                          class_to_idx,
+                                                          self.state["orientation_corr"],
+                                                          train_tfms,
+                                                          )
+        self.state["test_data"] = COCOLIVECellDataset(val_keys,
+                                                      annotation_df,
+                                                      image_dict,
+                                                      class_to_idx,
+                                                      self.state["orientation_corr"],
+                                                      train_tfms,
+                                                      )
 
         temp = pd.Series({
             'Training dataset size:': len(self.state["training_data"]),

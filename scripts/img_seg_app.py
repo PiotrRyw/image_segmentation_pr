@@ -11,9 +11,9 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from scripts.img_seg_Ops import ModelOps
-from scripts.project_utils import prepare_learning_graph
+from scripts.project_utils import prepare_learning_graph, OrientationCorrection
 
-_DEBUG = True
+_DEBUG = False
 
 class ImageSegApplication:
     """Class loading settings from config file and starting either training or inference"""
@@ -54,6 +54,13 @@ class ImageSegApplication:
         self.model_ops.state["prediction_model_path"] = temp["Prediction_settings"]["prediction_model_path"]
         self.model_ops.state["image_path"] = temp["Prediction_settings"]["image_path"]
         self.model_ops.state["class_names"] = temp["Training_settings"]["class_names"]
+
+        orientation_corr = OrientationCorrection()
+        orientation_corr.define_height_width(
+            height=temp["Training_settings"]["image_height"],
+            width=temp["Training_settings"]["image_width"],
+        )
+        self.model_ops.state["orientation_corr"] = orientation_corr
 
     def show_sample_data(self):
         self.model_ops.load_sample_image()
@@ -128,7 +135,7 @@ class ImageSegApplication:
 
                 if path == "Kill":
                     break
-                if DEBUG:
+                if _DEBUG:
                     print(f"received: {path}")
 
                 all_data = pd.read_csv(path, index_col=0)

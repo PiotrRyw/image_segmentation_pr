@@ -11,8 +11,8 @@ import torchvision.transforms.v2 as transforms
 from torchvision.utils import draw_segmentation_masks
 from cjm_pytorch_utils.core import tensor_to_pil, move_data_to_device
 import torch.nn.functional as F
-from scripts.project_utils import create_polygon_mask, rle2mask, correct_rotated_masks
 
+from scripts.project_utils import create_polygon_mask, rle2mask, OrientationCorrection
 
 def test_model(model,
                device,
@@ -24,6 +24,7 @@ def test_model(model,
                class_names,
                int_colors,
                font,
+               orientation_corr,
                ):
 
     # Choose a random item from the validation set
@@ -69,7 +70,7 @@ def test_model(model,
             raise Exception("wrong data in annotation")
 
     # something is wrong with some annotations - the dimension is flipped. Drop them and print out
-    correct_rotated_masks(mask_imgs)
+    orientation_corr.correct_rotated_masks(mask_imgs)
 
     # Convert mask images to tensors
     target_masks = torch.concat([Mask(transforms.PILToTensor()(mask_img), dtype=torch.bool) for mask_img in mask_imgs])

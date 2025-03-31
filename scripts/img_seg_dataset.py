@@ -16,8 +16,7 @@ from PIL import Image
 import torch
 from cjm_pytorch_utils.core import tensor_to_pil
 
-from scripts.project_utils import create_polygon_mask, rle2mask, correct_rotated_masks, get_image_files, train_tfms, \
-    correct_rotated_masks_old
+from scripts.project_utils import create_polygon_mask, rle2mask, get_image_files, train_tfms, OrientationCorrection
 
 
 class COCOLIVECellDataset(Dataset):
@@ -53,7 +52,7 @@ class COCOLIVECellDataset(Dataset):
 
     """
 
-    def __init__(self, img_keys, annotation_df, img_dict, class_to_idx, defined_transforms=None):
+    def __init__(self, img_keys, annotation_df, img_dict, class_to_idx, orientation_corr, defined_transforms=None):
         """
         Initializes the COCOInstSegDataset instance.
 
@@ -63,6 +62,7 @@ class COCOLIVECellDataset(Dataset):
             img_dict (dict): Dictionary mapping image keys to file paths.
             class_to_idx (dict): Dictionary mapping class names to indices.
             transforms (callable, optional): Optional transform to be applied on a sample.
+            orientation_corr (object): resolution of properly oriented image
         """
         super(Dataset, self).__init__()
 
@@ -71,6 +71,8 @@ class COCOLIVECellDataset(Dataset):
         self._img_dict = img_dict  # Dictionary mapping image keys to image paths
         self._class_to_idx = class_to_idx  # Dictionary mapping class names to class indices
         self._transforms = defined_transforms  # Image transforms to be applied
+
+        self._orientation_corr = orientation_corr  # resolution of properly oriented image
 
     def __len__(self):
         # Returns the number of items in the dataset
@@ -108,7 +110,7 @@ class COCOLIVECellDataset(Dataset):
             else:
                 raise RuntimeError(f"Wrong annotation data for file with id {filepath}")
 
-        correct_rotated_masks(mask_imgs_rle)
+        self._orientation_corr.correct_rotated_masks(mask_imgs_rle)
 
         mask_imgs = mask_imgs_cpm
         mask_imgs.extend(mask_imgs_rle)

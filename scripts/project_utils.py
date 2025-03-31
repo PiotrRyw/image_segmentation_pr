@@ -58,29 +58,49 @@ def create_polygon_mask(image_size, vertices):
     # Return the image with the drawn polygon
     return mask_img
 
+class OrientationCorrection:
+    def __init__(self):
+        self.height: int | None = None
+        self.width: int | None = None
 
-def correct_rotated_masks(masks_list):
-    for i in range(len(masks_list)):
-        if masks_list[i].height == 520 and masks_list[i].width == 704:
-            continue
-        else:
-            mask_img = masks_list[i]
-            mask_img = mask_img.rotate(90, expand=True)
-            mask_img = mask_img.transpose(Image.FLIP_TOP_BOTTOM)
-            masks_list[i] = mask_img
+    def define_height_width(self, height, width):
+        self.height = height
+        self.width = width
 
+    @staticmethod
+    def check_if_ready(func):
+        def wrapper(self, *args, **kwargs):
 
-def correct_rotated_masks_old(masks_list):
-    good_list = []
-    for mask_img in masks_list:
-        if mask_img.height == 520 and mask_img.width == 704:
-            good_list.append(mask_img)
-        else:
-            mask_img = mask_img.rotate(90, expand=True)
-            mask_img = mask_img.transpose(Image.FLIP_TOP_BOTTOM)
-            good_list.append(mask_img)
+            assert isinstance(self.height, int)
+            assert isinstance(self.width, int)
 
-    return good_list
+            func(self, *args, **kwargs)
+
+        return wrapper
+
+    @check_if_ready
+    def correct_rotated_masks(self, masks_list):
+        for i in range(len(masks_list)):
+            if masks_list[i].height == self.height and masks_list[i].width == self.width:
+                continue
+            else:
+                mask_img = masks_list[i]
+                mask_img = mask_img.rotate(90, expand=True)
+                mask_img = mask_img.transpose(Image.FLIP_TOP_BOTTOM)
+                masks_list[i] = mask_img
+
+    @check_if_ready
+    def correct_rotated_masks_old(self, masks_list):
+        good_list = []
+        for mask_img in masks_list:
+            if mask_img.height == self.height and mask_img.width == self.width:
+                good_list.append(mask_img)
+            else:
+                mask_img = mask_img.rotate(90, expand=True)
+                mask_img = mask_img.transpose(Image.FLIP_TOP_BOTTOM)
+                good_list.append(mask_img)
+
+        return good_list
 
 
 def get_image_files(img_dir: Path,  # The directory to search for image files
