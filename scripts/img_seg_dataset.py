@@ -181,8 +181,8 @@ class DatasetUtils:
     def create_dataframe(cls, annotation_file_df):
         categories_df = annotation_file_df['categories'].dropna().apply(pd.Series)
         categories_df.set_index('id', inplace=True)
-        # print(categories_df)
-
+        # pd.options.display.max_columns = None
+        # pd.options.display.width = 0
         # Extract and transform the 'images' section of the data
         # This DataFrame contains image details like file name, height, width, and image ID
         images_df = annotation_file_df['images'].to_frame()['images'].apply(pd.Series)[
@@ -194,14 +194,19 @@ class DatasetUtils:
         # This DataFrame contains annotation details like image ID, segmentation points, bounding box, and category ID
         annotations_df = annotation_file_df['annotations'].to_frame()['annotations'].apply(pd.Series)[
             ['image_id', 'segmentation', 'bbox', 'category_id']]
-        pd.options.display.max_columns = None
-        pd.options.display.width = 0
 
         # Map 'category_id' in annotations DataFrame to category name using categories DataFrame
         annotations_df['label'] = annotations_df['category_id'].apply(lambda x: categories_df.loc[x]['name'])
 
         # Merge annotations DataFrame with images DataFrame on their image ID
         annotation_df = pd.merge(annotations_df, images_df, left_on='image_id', right_on='id')
+
+        # print("Images dataframe:")
+        # print(images_df.head())
+        # print("annotations_df dataframe:")
+        # print(annotations_df.head())
+        # print("annotation_df dataframe:")
+        # print(annotation_df.head())
 
         # Remove old 'id' column post-merge
         annotation_df.drop('id', axis=1, inplace=True)
@@ -225,8 +230,9 @@ class DatasetUtils:
 
         # Rename columns for clarity
         annotation_df.rename(columns={'bbox': 'bboxes', 'label': 'labels'}, inplace=True)
+        # print(annotation_df.head())
 
-        return annotations_df
+        return annotation_df
 
     @classmethod
     def _private_create_image_and_annotation_dict(cls,
@@ -247,18 +253,30 @@ class DatasetUtils:
         }
         print(f"Number of Images: {len(image_dict)}")
 
+        # pd.set_option('display.max_columns', None)
+        # pd.set_option('display.max_rows', None)
+
         temp = cls.check_cached(annotation_file_path)
+        _flag_bad = False
         if temp:  # is not None
-            with open(temp, "r") as file:
-                annotation_df = pd.read_json(file)
-            print(f"Loaded cached file {temp}")
+            try:
+                with open(temp, "r") as file:
+                    annotation_df = pd.read_json(file)
+                print(f"Loaded cached file {temp, annotation_file_path}")
+            except FileNotFoundError:
+                _flag_bad = True
+                cls.remove_from_cache(temp)
         else:
+            _flag_bad = True
+
+        if _flag_bad:
             # Read the JSON file into a DataFrame, assuming the JSON is oriented by index
             annotation_file_df = pd.read_json(annotation_file_path, orient='index').transpose()
-            # print(annotation_file_df.head())
-            print(f"Loaded file {annotation_file_path}")
+            print(f"Cache did not exist. Loaded file {annotation_file_path}")
             annotation_df = cls.create_dataframe(annotation_file_df)
 
+
+        # print(annotation_df.head())
         # Create a mapping from class names to class indices
         class_to_idx = {c: i for i, c in enumerate(class_names)}
 
@@ -280,7 +298,13 @@ class DatasetUtils:
 
         cls.cache_result(annotation_file_path, annotation_df)
 
+        serializable_image_dict = dict()
+        for key in image_dict:
+            serializable_image_dict[key] = str(image_dict[key])
+        with open("images_dict.json", "w") as f:
+            json.dump(serializable_image_dict, f)
         os.chdir(app_working_directory)
+
 
         return image_dict, annotation_df, train_keys, val_keys, class_to_idx
 
@@ -296,6 +320,15 @@ class DatasetUtils:
                                                              class_names,
                                                              train_pct,
                                                              )
+
+    @classmethod
+    def remove_from_cache(cls, file_path):
+        cls.find_cache()
+        with open("cached.json", "r") as file:
+            temp: json = json.load(file)
+        temp.pop(file_path)
+        with open("cached.json", "w") as file:
+            json.dump(temp, file)
 
 
 def test():

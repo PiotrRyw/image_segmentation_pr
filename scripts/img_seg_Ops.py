@@ -66,6 +66,8 @@ class State:
             "prediction_model_path": "",
             "image_path": "",
             "orientation_corr": OrientationCorrection(),
+            "model_name": "",
+            "pretrained": False,
         }
         keys = self._state_dict.keys()
         self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
@@ -133,29 +135,6 @@ class ModelOps:
         self.state = State()
         self.queue = None
 
-    # @staticmethod
-    # def check_readiness(func):
-    #     def wrapper(*args,**kwargs):
-    #         is_ready = True
-    #         missing = []
-    #         if func.__name__ == "load_data":
-    #             data_can_be_loaded, temp = ModelOps.state.data_can_be_loaded
-    #             is_ready = is_ready and data_can_be_loaded
-    #             missing.append(temp)
-    #
-    #         if func.__name__ in ["train", "test"]:
-    #             data_is_loaded, temp = ModelOps.state.data_is_loaded
-    #             missing.append(temp)
-    #             is_ready = is_ready and data_is_loaded
-    #
-    #         if not is_ready:
-    #             print(f"Missing following: {missing} from config file")
-    #             return
-    #
-    #         func(*args, **kwargs)
-    #
-    #     return wrapper
-
 
     def load_sample_image(self):
         self.load_data()
@@ -163,7 +142,7 @@ class ModelOps:
         verify_dataset(self.state["test_data"], self.state["class_names"], self.state["font_file"], 1)
 
 
-    def setup_model(self, model_path=""):
+    def setup_model(self):
         # select device
         device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
         self.state["device"] = device
@@ -175,7 +154,7 @@ class ModelOps:
             device=device,
             dtype=dtype,
             number_of_classes=len(self.state["class_names"]),
-            model_path=model_path
+            model_name=self.state["model_name"],
         )
 
 
@@ -208,10 +187,16 @@ class ModelOps:
                                                            max_lr=lr,
                                                            total_steps=epochs * len(self.state["dataloader_training_data"]))
 
-        columns = ['epoch', 'train_loss', 'valid_loss', 'learning_rate', 'model_architecture']
-        epoch_df = pd.DataFrame({}, columns=columns)
-        temp_path = Path(checkpoint_path.parent / 'log.csv')
-        epoch_df.to_csv(temp_path, mode='a', index=False, header=True)
+        if self.state["pretrained"]:
+            dir_path = Path(self.state["prediction_model_path"]).parent / "log.csv"
+            df = pd.read_csv(dir_path)
+            # starting_epoch =
+            starting_epoch = df["epoch"].iloc[-1] + 1
+        else:
+            columns = ['epoch', 'train_loss', 'valid_loss', 'learning_rate', 'model_architecture']
+            epoch_df = pd.DataFrame({}, columns=columns)
+            temp_path = Path(checkpoint_path.parent / 'log.csv')
+            epoch_df.to_csv(temp_path, mode='a', index=False, header=True)
 
         train_loop(model=model,
                    train_dataloader=self.state["dataloader_training_data"],
@@ -227,6 +212,7 @@ class ModelOps:
                    annotation_file_path=self.state["annotation_file_path"],
                    queue=self.queue,
                    use_scaler=True,
+                   starting_epoch=starting_epoch
                    )
 
 
@@ -380,6 +366,10 @@ class ModelOps:
         self.state["checkpoint_path"] = self.state["checkpoint_dir"] / f"{self.state['model'].model.name}.pth"
 
     def run_epochs(self):
+        if self.state["pretrained"]:
+            self.state["model"].load_state_from_file(self.state["prediction_model_path"])
+
+
         self.train(self.state["checkpoint_dir"], self.state["checkpoint_path"])
         self.test(self.state["checkpoint_dir"])
 
@@ -393,8 +383,8 @@ class ModelOps:
 
 
     def infer(self):
-
-        self.setup_model(self.state["prediction_model_path"])
+        self.setup_model()
+        self.state["model"].load_state_from_file(self.state["prediction_model_path"])
 
         model_settings = {
             "class_names": self.state["class_names"],

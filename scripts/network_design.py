@@ -12,14 +12,17 @@ class NeuralNetworkOpsBaseClass:
 
 
 class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
-    def __init__(self, device, dtype, number_of_classes, model_path=""):
+    def __init__(self, device, dtype, number_of_classes, model_name=""):
         super().__init__()
         # Model
 
-        # Initialize a Mask R-CNN model with pretrained weights
-        self.model = maskrcnn_resnet50_fpn_v2()
+        # Initialize a Mask R-CNN model (with or without) pretrained weights
+        self.model = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
 
-        self.model.name = 'maskrcnn_resnet50_fpn_v2'
+        if model_name == "":
+            self.model.name = 'maskrcnn_resnet50_fpn_v2'
+        else:
+            self.model.name = model_name
         # Get the number of input features for the classifier
         in_features_box = self.model.roi_heads.box_predictor.cls_score.in_features
         in_features_mask = self.model.roi_heads.mask_predictor.conv5_mask.in_channels
@@ -37,9 +40,10 @@ class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
         # Set the model's device and data type
         self.model.to(device=device, dtype=dtype)
 
-        if model_path != "":
-            self.model.load_state_dict(torch.load(model_path))
 
+    def load_state_from_file(self, model_path):
+        self.model.load_state_dict(torch.load(model_path))
+        print(f"Loaded state from {model_path}")
 
 # Define model
 class NeuralNetwork(nn.Module):

@@ -27,7 +27,7 @@ class ImageSegApplication:
         else:
             self.config_path = config
 
-    def _load_json_config(self, path):
+    def _load_json_config(self, path, infer=False):
         """Loading config file with settings from path specified in cls field [config_path]"""
         with open(path, "r") as file:
             temp = json.load(file)
@@ -62,6 +62,13 @@ class ImageSegApplication:
         )
         self.model_ops.state["orientation_corr"] = orientation_corr
 
+        self.model_ops.state["model_name"] = temp["Model"]["model_name"]
+
+        if infer:
+            self.model_ops.state["pretrained"] = True
+        else:
+            self.model_ops.state["pretrained"] = temp["Training_settings"]["pretrained"]
+
     def show_sample_data(self):
         self.model_ops.load_sample_image()
 
@@ -72,6 +79,15 @@ class ImageSegApplication:
         self.model_ops.load_data()
         self.model_ops.queue = queue
         self.model_ops.get_ready()
+
+        if self.model_ops.state["pretrained"]:
+            dir_path = Path(self.model_ops.state["prediction_model_path"]).parent / "log.csv"
+            df = pd.read_csv(dir_path)
+            temp_path = Path(self.model_ops.state["checkpoint_path"].parent / 'log.csv')
+            df.to_csv(temp_path, index=False, header=True)
+            print(f"saved to {temp_path}")
+            queue.put(temp_path)
+
         self.model_ops.run_epochs()
 
     def run_training(self):
@@ -93,7 +109,7 @@ class ImageSegApplication:
 
     def run_inference(self):
         self.model_ops = ModelOps()
-        self._load_json_config(self.config_path)
+        self._load_json_config(self.config_path, infer=True)
         self.model_ops.infer()
 
     def _dummy_metadata_process(self, queue: Queue):

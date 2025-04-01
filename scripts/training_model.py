@@ -107,6 +107,7 @@ def train_loop(model,
                annotation_file_path,
                queue: Queue,
                use_scaler=False,
+               starting_epoch = 0,
                ):
     """
     Main training loop.
@@ -143,7 +144,7 @@ def train_loop(model,
         # dump metadata for future reference - PR
 
         epoch_metadata = {
-            'epoch': [epoch],
+            'epoch': [epoch+starting_epoch],
             'train_loss': [train_loss],
             'valid_loss': [valid_loss],
             'learning_rate': [lr_scheduler.get_last_lr()[0]],
