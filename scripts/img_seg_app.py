@@ -78,7 +78,7 @@ class ImageSegApplication:
 
         self.model_ops.load_data()
         self.model_ops.queue = queue
-        self.model_ops.get_ready()
+        self.model_ops.get_ready_to_train_model()
 
         if self.model_ops.state["pretrained"]:
             dir_path = Path(self.model_ops.state["prediction_model_path"]).parent / "log.csv"
@@ -90,7 +90,7 @@ class ImageSegApplication:
 
         self.model_ops.run_epochs()
 
-    def run_training(self):
+    def run_training_main_process(self):
 
         queue = Queue()
         # run training and testing

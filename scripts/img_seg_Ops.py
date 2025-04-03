@@ -307,8 +307,10 @@ class ModelOps:
         checkpoint_dir: Path = self.state["project_dir"] / timestamp
         self.state["checkpoint_dir"] = checkpoint_dir
 
-        print("Saving dir")
-        print(str(checkpoint_dir))
+    def get_ready_to_train_model(self):
+        # create directory for the model
+        checkpoint_dir = self.state["checkpoint_dir"]
+        print(f"Creating checkpoint dir {checkpoint_dir}")
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
 
