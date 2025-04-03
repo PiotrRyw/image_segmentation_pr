@@ -106,7 +106,6 @@ class ImageSegApplication:
 
         p_display_progress.join()
 
-
     def run_inference(self):
         self.model_ops = ModelOps()
         self._load_json_config(self.config_path, infer=True)
@@ -142,10 +141,14 @@ class ImageSegApplication:
     def display_progress(self, queue: Queue):
         plt.ion()  # Turn on interactive mode
         fig, ax = plt.subplots()
+        training_data = None
         while True:
             try:
                 if len(plt.get_fignums()) == 0:
                     fig, ax = plt.subplots()
+                    if training_data is not None:
+                        ax.plot(training_data)
+
 
                 path = queue.get(timeout=0.1)
 
