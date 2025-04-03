@@ -99,15 +99,14 @@ def train_loop(model,
                lr_scheduler,
                device,
                epochs,
-               checkpoint_path,
-
+               checkpoint_path : Path,
                train_sz,
                batch_size,
                initial_learning_rate,
                annotation_file_path,
                queue: Queue,
                use_scaler=False,
-               starting_epoch = 0,
+               starting_epoch=0
                ):
     """
     Main training loop.
@@ -133,7 +132,7 @@ def train_loop(model,
     best_loss = float('inf')  # Initialize the best validation loss
 
     # Loop over the epochs
-    for epoch in tqdm(range(epochs), desc="Epochs"):
+    for epoch in tqdm(range(starting_epoch, epochs), desc="Epochs"):
         # Run a training epoch and get the training loss
         train_loss = run_epoch(model, train_dataloader, optimizer, lr_scheduler, device, scaler, epoch,
                                is_training=True)
@@ -144,14 +143,15 @@ def train_loop(model,
         # dump metadata for future reference - PR
 
         epoch_metadata = {
-            'epoch': [epoch+starting_epoch],
+            'epoch': [epoch],
             'train_loss': [train_loss],
             'valid_loss': [valid_loss],
             'learning_rate': [lr_scheduler.get_last_lr()[0]],
             'model_architecture': [model.name]
         }
         epoch_df = pd.DataFrame(epoch_metadata)
-        temp_path = Path(checkpoint_path.parent / 'log.csv')
+        temp_path = checkpoint_path / 'log.csv'
+
         epoch_df.to_csv(temp_path, mode='a', index=False, header=False)
 
         queue.put(temp_path)
@@ -159,7 +159,15 @@ def train_loop(model,
         # If the validation loss is lower than the best validation loss seen so far, save the model checkpoint
         if valid_loss < best_loss:
             best_loss = valid_loss
-            torch.save(model.state_dict(), checkpoint_path)
+
+            file_name = model.name + ".pth"
+            torch.save(model.state_dict(), checkpoint_path / file_name)
+
+            checkpoint = {
+                'epoch': epoch,
+                'optimizer': optimizer.state_dict(),
+                'lr_sched': lr_scheduler}
+            torch.save(checkpoint, checkpoint_path / 'checkpoint.pth')
 
             # Save metadata about the training process
             training_metadata = {
@@ -173,7 +181,7 @@ def train_loop(model,
                 'org learning rate:': initial_learning_rate,
                 'dataset': annotation_file_path
             }
-            with open(Path(checkpoint_path.parent / 'training_metadata.json'), 'w') as file:
+            with open(checkpoint_path / 'training_metadata.json', 'w') as file:
                 json.dump(training_metadata, file)
 
     # If the device is a GPU, empty the cache

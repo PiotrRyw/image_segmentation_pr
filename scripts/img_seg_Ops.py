@@ -157,26 +157,10 @@ class ModelOps:
             model_name=self.state["model_name"],
         )
 
-
-    def train(self, checkpoint_dir, checkpoint_path: Path):
-        # Training
-
-        color_map = {'items': [{'label': label, 'color': color} for label, color in
-                               zip(self.state["class_names"], self.state["colors"])]}
-
-
-        ModelOpsUtils.make_config_dir_save_color_map(color_map=color_map,
-                                                     checkpoint_dir=checkpoint_dir,
-                                                     model_name=self.state['model'].model.name,
-                                                     dataset_path_name=self.state["dataset_path"].name,
-                                                     )
-
+    def create_optimizer_scheduler(self):
         # Learning rate for the model
         lr = self.state["initial_learning_rate"]
-
-        # Number of training epochs
         epochs = self.state["number_of_epochs"]
-
         model = self.state["model"].model
 
         # AdamW optimizer; includes weight decay for regularization
@@ -186,17 +170,12 @@ class ModelOps:
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                            max_lr=lr,
                                                            total_steps=epochs * len(self.state["dataloader_training_data"]))
+        return optimizer, lr_scheduler
 
-        if self.state["pretrained"]:
-            dir_path = Path(self.state["prediction_model_path"]).parent / "log.csv"
-            df = pd.read_csv(dir_path)
-            # starting_epoch =
-            starting_epoch = df["epoch"].iloc[-1] + 1
-        else:
-            columns = ['epoch', 'train_loss', 'valid_loss', 'learning_rate', 'model_architecture']
-            epoch_df = pd.DataFrame({}, columns=columns)
-            temp_path = Path(checkpoint_path.parent / 'log.csv')
-            epoch_df.to_csv(temp_path, mode='a', index=False, header=True)
+    def train(self, checkpoint_path: Path, optimizer, lr_scheduler, starting_epoch):
+        # Training
+        epochs = self.state["number_of_epochs"]
+        model = self.state["model"].model
 
         train_loop(model=model,
                    train_dataloader=self.state["dataloader_training_data"],
@@ -224,7 +203,7 @@ class ModelOps:
 
         log_path = checkpoint_dir / "log.csv"
 
-        # draw_learning_graph(log_path)
+        draw_learning_graph(log_path)
 
         # Make a copy of the color map in integer format
         int_colors = [tuple(int(c * 255) for c in color) for color in self.state["colors"]]
@@ -241,7 +220,6 @@ class ModelOps:
                    font=self.state["font_file"],
                    orientation_corr=self.state["orientation_corr"],
                    )
-
 
     def load_data(self):
         # Download the font file
@@ -277,7 +255,6 @@ class ModelOps:
         self.state["image_dict"] = image_dict
         self.state["annotation_df"] = annotation_df
         self.state["colors"] = distinctipy.get_colors(len(class_names))
-
         self.state["validation_keys"] = val_keys
 
         self.state["training_data"] = COCOLIVECellDataset(train_keys,
@@ -313,31 +290,19 @@ class ModelOps:
         print(f"Creating checkpoint dir {checkpoint_dir}")
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-
-    def get_ready(self):
         # select device
         self.setup_model()
         device = self.state["device"]
         model = self.state["model"].model
 
         test_inp = tuple(torch.randn(1, 3, 256, 256).to(device))
-        print(test_inp)
-
         summary_df = markdown_to_pandas(f"{get_module_summary(model.eval(), [test_inp])}")
-
-        # # Filter the summary to only contain Conv2d layers and the model
         summary_df = summary_df[summary_df.index == 0]
-
         temp = summary_df.drop(['In size', 'Out size', 'Contains Uninitialized Parameters?'], axis=1)
-
         print(temp.to_string())
 
         # DataLoader
-        # Set the training batch size
         bs = self.state["batch_size"]
-
-        # Set the number of worker processes for loading data.
-        # num_workers = multiprocessing.cpu_count() // 2
         num_workers = self.state["number_of_workers"]
 
         # Define parameters for DataLoader
@@ -353,10 +318,8 @@ class ModelOps:
             'collate_fn': tuple_batch,
         }
 
-        # Create DataLoader for training data. Data is shuffled for every epoch.
+        # Creating DataLoader for training and validation data
         self.state["dataloader_training_data"] = DataLoader(self.state["training_data"], **data_loader_params, shuffle=True)
-
-        # Create DataLoader for validation data. Shuffling is not necessary for validation data.
         self.state["dataloader_testing_data"] = DataLoader(self.state["test_data"], **data_loader_params)
 
         # Print the number of batches in the training and validation DataLoaders
@@ -364,15 +327,45 @@ class ModelOps:
             'Number of batches in train DataLoader:': len(self.state["dataloader_training_data"]),
             'Number of batches in validation DataLoader:': len(self.state["dataloader_testing_data"])}
         ).to_frame().style.hide(axis='columns')
+        print(temp)
 
         self.state["checkpoint_path"] = self.state["checkpoint_dir"] / f"{self.state['model'].model.name}.pth"
 
+
+        color_map = {'items': [{'label': label, 'color': color} for label, color in
+                               zip(self.state["class_names"], self.state["colors"])]}
+
+
+        ModelOpsUtils.make_config_dir_save_color_map(color_map=color_map,
+                                                     checkpoint_dir=checkpoint_dir,
+                                                     model_name=self.state['model'].model.name,
+                                                     dataset_path_name=self.state["dataset_path"].name,
+                                                     )
+
+        if not self.state["pretrained"]:
+            columns = ['epoch', 'train_loss', 'valid_loss', 'learning_rate', 'model_architecture']
+            epoch_df = pd.DataFrame({}, columns=columns)
+            temp_path = Path(self.state["checkpoint_path"].parent / 'log.csv')
+            epoch_df.to_csv(temp_path, mode='a', index=False, header=True)
+
+    def load_training_checkpoint(self, optimizer, lr_scheduler):
+        self.state["model"].load_state_from_file(self.state["prediction_model_path"])
+        temp_path = Path(self.state["prediction_model_path"]).parent / 'checkpoint.pth'
+        checkpoint = torch.load(temp_path, weights_only=False)
+
+        start_epoch = checkpoint['epoch']
+        print(f"Start epoch: {start_epoch}")
+        optimizer.load_state_dict(checkpoint['optimizer'])
+
+        return optimizer, lr_scheduler, start_epoch
+
     def run_epochs(self):
+        optimizer, lr_scheduler = self.create_optimizer_scheduler()
+        epoch = 0
         if self.state["pretrained"]:
-            self.state["model"].load_state_from_file(self.state["prediction_model_path"])
+            optimizer, lr_scheduler, epoch = self.load_training_checkpoint(optimizer, lr_scheduler)
 
-
-        self.train(self.state["checkpoint_dir"], self.state["checkpoint_path"])
+        self.train(self.state["checkpoint_dir"],optimizer, lr_scheduler, epoch)
         self.test(self.state["checkpoint_dir"])
 
     def get_queue(self, q: Queue):
@@ -382,7 +375,6 @@ class ModelOps:
         self.load_data()
         self.setup_model()
         self.test(self.state["checkpoint_dir"])
-
 
     def infer(self):
         self.setup_model()
@@ -395,3 +387,7 @@ class ModelOps:
             "threshold": self.state["prediction_threshold"]
         }
         segment_image(model=self.state["model"].model, image_path=self.state["image_path"], model_settings=model_settings)
+
+
+if __name__ == "__main__":
+    print("Test img_seq_Ops")
