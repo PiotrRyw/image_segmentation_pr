@@ -85,27 +85,27 @@ class State:
             msg = f"property {item} cannot be set as it already has a value of {self._state_dict[item]}"
             raise RuntimeError(msg)
 
-    def check_properties(self, required):
-        is_good_to_go = True
-        missing_attributes = []
-        for req in required:
-            if not self._is_set[req]:
-                missing_attributes.append(req)
-        return is_good_to_go, missing_attributes
-
-    @property
-    def data_can_be_loaded(self) -> Tuple[bool, List]:
-        required = ["batch_size", "number_of_epochs", "dataset_name", "dataset_dir", "images_subdirectory",
-                    "annotation_file_path", "project_name", "train_pct"
-                    ]
-
-        return self.check_properties(required)
-
-    @property
-    def data_is_loaded(self) -> Tuple[bool, List]:
-        required = ["training_data", "test_data"]
-
-        return self.check_properties(required)
+    # def check_properties(self, required):
+    #     is_good_to_go = True
+    #     missing_attributes = []
+    #     for req in required:
+    #         if not self._is_set[req]:
+    #             missing_attributes.append(req)
+    #     return is_good_to_go, missing_attributes
+    #
+    # @property
+    # def data_can_be_loaded(self) -> Tuple[bool, List]:
+    #     required = ["batch_size", "number_of_epochs", "dataset_name", "dataset_dir", "images_subdirectory",
+    #                 "annotation_file_path", "project_name", "train_pct"
+    #                 ]
+    #
+    #     return self.check_properties(required)
+    #
+    # @property
+    # def data_is_loaded(self) -> Tuple[bool, List]:
+    #     required = ["training_data", "test_data"]
+    #
+    #     return self.check_properties(required)
 
 
 class ModelOpsUtils:
