@@ -109,6 +109,15 @@ class ImageSegApplication:
     def run_inference(self):
         self.model_ops = ModelOps()
         self._load_json_config(self.config_path, infer=True)
+
+        fig, ax = plt.subplots()
+        path = Path(self.model_ops.state["prediction_model_path"]).parent / 'log.csv'
+        all_data = pd.read_csv(path, index_col=0)
+        training_data = all_data[["train_loss", "valid_loss"]]
+        ax.plot(training_data)
+        ax.legend(training_data.columns)
+        plt.show()
+
         self.model_ops.infer()
 
     def _dummy_metadata_process(self, queue: Queue):
