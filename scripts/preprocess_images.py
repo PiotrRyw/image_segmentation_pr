@@ -1,7 +1,10 @@
 # Code from Sartorius Corporate Research on GitHub
+import os.path
 
 import cv2
 import numpy as np
+from os import listdir
+from os.path import isfile, join
 
 # this function is designed to adapt images acquired with other light microscopy modalities
 # in order to enable inference with LIVECell trained models
@@ -57,10 +60,44 @@ def preprocess(input_image, magnification_downsample_factor=1.0):
 # Code written by PR:
 from PIL import Image
 
+def script_change_tif_to_png():
+    mypath = r"D:\dev\dataset\original_tiff_files"
+    out_put_dir = r"D:\dev\dataset\tiff_to_png_files"
+
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+    print(onlyfiles)
+
+    cohort_name = onlyfiles[0][ 0 : onlyfiles[0].find("_pos_") ]
+
+    for filepath in onlyfiles:
+
+        cohort_name = filepath[0: filepath.find("_pos_")]
+        output_name = cohort_name + filepath[filepath.find("_pos_")+5 : filepath.find("_pos_")+8 ] + "_" + f'{filepath[filepath.find("frame_")+6 : filepath.find("of")]:0>3}' + ".png"
+
+        output_file_path = out_put_dir + "\\" + output_name
+
+
+        filepath = mypath + "\\" + filepath
+
+        input_image = Image.open(filepath).convert('RGB')
+        output_image = preprocess(np.asarray(input_image))
+        proccessed_image = Image.fromarray(output_image)
+        proccessed_image.save(output_file_path)
+        print(f"Saved to {output_file_path}")
+
+def script_batch_preprocess():
+    image_dir = r"D:\dev\astrocyte-dataset\Astrocytes_dataset_2025\images\all_images"
+    onlyfiles = [f for f in listdir(image_dir) if isfile(join(image_dir, f))]
+
+    for filepath in onlyfiles:
+        filepath = os.path.join(image_dir, filepath)
+        input_image = Image.open(filepath).convert('RGB')
+        output_image = preprocess(np.asarray(input_image))
+        proccessed_image = Image.fromarray(output_image)
+        proccessed_image.save(filepath)
+        print(f"Saved to {filepath}")
+
+
 if __name__ == "__main__":
-    # filepath = r"D:\dev\livecell-dataset\LIVECell_dataset_2021\images\livecell_test_images\A172_Phase_C7_1_01d12h00m_1.tif"
-    filepath = r"D:\dev\university\Position004.tif"
-    input_image = Image.open(filepath).convert('RGB')
-    output_image = preprocess(np.asarray(input_image))
-    Image.fromarray(output_image).show()
+    script_batch_preprocess()
 
