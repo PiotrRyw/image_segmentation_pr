@@ -1,4 +1,5 @@
 import torch
+import torchvision
 from torch import nn
 from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
@@ -42,8 +43,11 @@ class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
 
 
     def load_state_from_file(self, model_path):
-        self.model.load_state_dict(torch.load(model_path))
-        print(f"Loaded state from {model_path}")
+        try:
+            self.model.load_state_dict(torch.load(model_path))
+            print(f"Loaded state from {model_path}")
+        except FileNotFoundError:
+            print(f"No model file exists")
 
 # Define model
 class NeuralNetwork(nn.Module):
@@ -62,4 +66,3 @@ class NeuralNetwork(nn.Module):
         x = self.flatten(x)
         logits = self.linear_relu_stack(x)
         return logits
-
