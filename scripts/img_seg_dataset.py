@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List
 
 import pandas as pd
+from cjm_pil_utils.core import resize_img
 from torch.utils.data import Dataset
 import torch.utils.data
 from torchvision.ops import masks_to_boxes
@@ -73,6 +74,7 @@ class COCOLIVECellDataset(Dataset):
         self._transforms = defined_transforms  # Image transforms to be applied
 
         self._orientation_corr = orientation_corr  # resolution of properly oriented image
+        self.train_data_size = None
 
     def __len__(self):
         # Returns the number of items in the dataset
