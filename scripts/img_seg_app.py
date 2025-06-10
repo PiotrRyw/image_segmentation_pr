@@ -52,8 +52,9 @@ class ImageSegApplication:
         self.model_ops.state["font_file"] = temp["Miscellaneous"]["font_file"]
 
         self.model_ops.state["prediction_model_path"] = temp["Prediction_settings"]["prediction_model_path"]
-        self.model_ops.state["image_path"] = temp["Prediction_settings"]["image_path"]
+        self.model_ops.state["image_paths_config_file"] = temp["Prediction_settings"]["image_paths_config_file"]
         self.model_ops.state["class_names"] = temp["Training_settings"]["class_names"]
+        self.model_ops.state["output_directory"] = temp["Prediction_settings"]["output_directory"]
 
         orientation_corr = OrientationCorrection()
         orientation_corr.define_height_width(
