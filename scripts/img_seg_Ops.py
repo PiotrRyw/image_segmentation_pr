@@ -64,10 +64,11 @@ class State:
             "checkpoint_dir": Path(),
             "checkpoint_path" : Path(),
             "prediction_model_path": "",
-            "image_path": "",
+            "image_paths_config_file": "",
             "orientation_corr": OrientationCorrection(),
             "model_name": "",
             "pretrained": False,
+            "output_directory": ""
         }
         keys = self._state_dict.keys()
         self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
@@ -138,8 +139,8 @@ class ModelOps:
 
     def load_sample_image(self):
         self.load_data()
-        verify_dataset(self.state["training_data"], self.state["class_names"], self.state["font_file"], 1)
-        verify_dataset(self.state["test_data"], self.state["class_names"], self.state["font_file"], 1)
+        verify_dataset(self.state["training_data"], self.state["class_names"], self.state["font_file"])
+        # verify_dataset(self.state["test_data"], self.state["class_names"], self.state["font_file"], 1)
 
 
     def setup_model(self):
@@ -386,8 +387,22 @@ class ModelOps:
             "device": self.state["device"],
             "threshold": self.state["prediction_threshold"]
         }
-        segment_image(model=self.state["model"].model, image_path=self.state["image_path"], model_settings=model_settings)
+
+        images_paths = []
+        with open(self.state["image_paths_config_file"], 'r') as file:
+            temp = json.load(file)
+            images_paths = [img_path["file_path"] for img_path in temp["images"]]
+
+        for i, image_to_segment_path in enumerate(images_paths):
+
+            output_image_file_path = self.state["output_directory"] + str(i) + ".tif"
+
+            segment_image(model=self.state["model"].model,
+                          image_path=image_to_segment_path,
+                          model_settings=model_settings,
+                          output_file_path=output_image_file_path)
 
 
 if __name__ == "__main__":
     print("Test img_seq_Ops")
+    model_ops = ModelOps()
