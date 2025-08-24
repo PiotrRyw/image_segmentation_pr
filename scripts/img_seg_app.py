@@ -71,6 +71,8 @@ class ImageSegApplication:
             self.model_ops.state["pretrained"] = temp["Training_settings"]["pretrained"]
 
     def show_sample_data(self):
+        self.model_ops = ModelOps()
+        self._load_json_config(self.config_path)
         self.model_ops.load_sample_image()
 
     def run_epochs(self, queue: Queue):
