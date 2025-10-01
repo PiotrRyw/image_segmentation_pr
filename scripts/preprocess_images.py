@@ -1,10 +1,11 @@
 # Code from Sartorius Corporate Research on GitHub
 import os.path
 
-import cv2
+import cv2  # type: ignore
 import numpy as np
 from os import listdir
 from os.path import isfile, join
+import matplotlib.pyplot as plt  # type: ignore
 
 # this function is designed to adapt images acquired with other light microscopy modalities
 # in order to enable inference with LIVECell trained models
@@ -97,7 +98,28 @@ def script_batch_preprocess():
         proccessed_image.save(filepath)
         print(f"Saved to {filepath}")
 
+def script_batch_correct_livecell():
+    image_dir = r"D:\dev\livecell-dataset\LIVECell_dataset_2021\images\all_images"
+    new_image_dir = r"D:\dev\livecell-dataset\LIVECell_dataset_2021\images\altered_images"
+    onlyfiles = [f for f in listdir(image_dir) if isfile(join(image_dir, f))]
+
+    threshold = 127 + 14
+
+    for file_path in onlyfiles:
+        input_path = image_dir + "\\" + file_path
+        output_path = new_image_dir + "\\" + file_path
+        print(input_path, output_path)
+
+        org_img = cv2.imread(input_path)
+        img = cv2.cvtColor(org_img, cv2.COLOR_BGR2HSV)
+
+        high_value_mask = img[:, :, 2] > threshold
+        img[:, :, 2][high_value_mask] = 129
+        img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
+
+        cv2.imwrite(output_path, img)
 
 if __name__ == "__main__":
-    script_batch_preprocess()
+    # script_batch_preprocess()
 
+    script_batch_correct_livecell()

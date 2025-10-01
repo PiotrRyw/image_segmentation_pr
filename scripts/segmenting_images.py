@@ -1,19 +1,19 @@
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw
 from cjm_pil_utils.core import resize_img
 from cjm_pytorch_utils.core import move_data_to_device, tensor_to_pil
 from distinctipy import distinctipy
 import torchvision.transforms.v2 as transforms
 from torchvision.tv_tensors import Mask, BoundingBoxes
-from torchvision.utils import draw_segmentation_masks
+from torchvision.utils import draw_segmentation_masks, draw_bounding_boxes
 import torch.nn.functional as F
 
 from scripts.preprocess_images import preprocess
 
 
-def segment_image(model, image_path, model_settings):
+def segment_image(model, image_path, model_settings, output_file_path):
     class_names = model_settings["class_names"]
     device = model_settings["device"]
     threshold = model_settings["threshold"]
@@ -85,21 +85,44 @@ def segment_image(model, image_path, model_settings):
         annotated_tensor = draw_segmentation_masks(image=img_tensor, masks=pred_masks, alpha=0.3)
         pred_colors = [int_colors[i] for i in [class_names.index(label) for label in pred_labels]]
         # Annotate the test image with the predicted labels and bounding boxes
-        # annotated_tensor = draw_bboxes(
-        #     image=annotated_tensor,
+        # annotated_tensor = draw_bounding_boxes(
+        #     image=img_tensor,
         #     boxes=pred_bboxes,
-        #     labels=[f"{label}\n{prob * 100:.2f}%" for label, prob in zip(pred_labels, pred_scores)],
-        #     colors=pred_colors,
-        #     font=font_file,
-        #     font_size=10
+        #     labels=pred_labels,
         # )
 
         # Print the prediction data as a Pandas DataFrame for easy formatting
-        # pd.Series({
-        #     "Predicted BBoxes:": [f"{label}:{bbox}" for label, bbox in
-        #                           zip(pred_labels, pred_bboxes.round(decimals=3).numpy())],
-        #     "Confidence Scores:": [f"{label}: {prob * 100:.2f}%" for label, prob in zip(pred_labels, pred_scores)]
-        # }).to_frame().style.hide(axis='columns')
+        predictions = f"""
+        Predicted BBoxes: {[f'{label}:{bbox}' for label, bbox in
+                                  zip(pred_labels, pred_bboxes.round(decimals=3).numpy())]}
+        Confidence Scores: {[f'{label}: {prob * 100:.2f}%' for label, prob in zip(pred_labels, pred_scores)]}                          
+        """
+        print(predictions)
+
+        print(f"Number of segmentations: {len(pred_masks)}")
+        print(f"Number of bboxes: {len(pred_bboxes)}")
+        print(f"Number of classifications: {len(pred_labels)}")
 
         image_segmented = tensor_to_pil(annotated_tensor)
-        Image.fromarray(np.hstack((np.array(input_img), np.array(image_segmented)))).show()
+        # Image.fromarray(np.hstack((np.array(input_img), np.array(image_segmented)))).show()
+
+        # add padding
+        padding = 10
+        padding_color = (255, 255, 255)
+        width, height = input_img.size
+        new_width = width + padding*2
+        new_height = height + padding*2
+
+        reference_image = Image.new(input_img.mode, (new_width,  new_height), padding_color)
+        reference_image.paste(input_img, (padding, padding))
+
+        segmented_image = Image.new(image_segmented.mode, (new_width,  new_height), padding_color)
+        segmented_image.paste(image_segmented, (padding, padding))
+
+        img = Image.fromarray(np.hstack((np.array(reference_image), np.array(segmented_image))))
+
+        image_text = ImageDraw.Draw(img)
+        image_text.text((2*width, 10), f"{len(pred_masks)}", fill=(0,0,0))
+
+        img.save(output_file_path)
+

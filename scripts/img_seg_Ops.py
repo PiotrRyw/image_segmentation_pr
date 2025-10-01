@@ -377,6 +377,28 @@ class ModelOps:
         self.setup_model()
         self.test(self.state["checkpoint_dir"])
 
+    def dice_test(self):
+        self.setup_model()
+        self.state["model"].load_state_from_file(self.state["prediction_model_path"])
+        model_settings = {
+            "class_names": self.state["class_names"],
+            "train_size": self.state["train_data_size"],
+            "device": self.state["device"],
+            "threshold": self.state["prediction_threshold"]
+        }
+        images_paths = []
+        with open(self.state["image_paths_config_file"], 'r') as file:
+            temp = json.load(file)
+            images_paths = [img_path["file_path"] for img_path in temp["images"]]
+        for i, image_to_segment_path in enumerate(images_paths):
+            print(image_to_segment_path)
+            # output_image_file_path = self.state["output_directory"] + str(i) + ".png"
+            #
+            # segment_image(model=self.state["model"].model,
+            #               image_path=image_to_segment_path,
+            #               model_settings=model_settings,
+            #               output_file_path=output_image_file_path)
+
     def infer(self):
         self.setup_model()
         self.state["model"].load_state_from_file(self.state["prediction_model_path"])
@@ -395,7 +417,7 @@ class ModelOps:
 
         for i, image_to_segment_path in enumerate(images_paths):
 
-            output_image_file_path = self.state["output_directory"] + str(i) + ".tif"
+            output_image_file_path = self.state["output_directory"] + str(i) + ".png"
 
             segment_image(model=self.state["model"].model,
                           image_path=image_to_segment_path,

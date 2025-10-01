@@ -123,6 +123,11 @@ class ImageSegApplication:
 
         self.model_ops.infer()
 
+    def test_model(self):
+        self.model_ops = ModelOps()
+        self._load_json_config(self.config_path, infer=True)
+        self.model_ops.dice_test()
+
     def _dummy_metadata_process(self, queue: Queue):
 
         if os.path.exists("log.csv"):

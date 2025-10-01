@@ -95,7 +95,9 @@ class COCOLIVECellDataset(Dataset):
     def _load_image_and_target(self, annotation):
         # Loads an image and its corresponding target data (masks, boxes, labels)
         filepath = self._img_dict[annotation.name]
-        image = Image.open(filepath).convert('RGB')
+
+        image = Image.open(filepath)
+        image = image.convert("RGB")
 
         # Process segmentation polygons
         annotation_data = annotation['segmentation']
@@ -198,6 +200,7 @@ class DatasetUtils:
             ['image_id', 'segmentation', 'bbox', 'category_id']]
 
         # Map 'category_id' in annotations DataFrame to category name using categories DataFrame
+
         annotations_df['label'] = annotations_df['category_id'].apply(lambda x: categories_df.loc[x]['name'])
 
         # Merge annotations DataFrame with images DataFrame on their image ID

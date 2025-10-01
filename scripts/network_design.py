@@ -38,6 +38,8 @@ class NeuralNetworkOps(NeuralNetworkOpsBaseClass):
         self.model.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced,
                                                            num_classes=number_of_classes)
 
+        self.model.roi_heads.detections_per_img = 300
+        self.model.roi_heads.nms_thresh = 0.7
         # Set the model's device and data type
         self.model.to(device=device, dtype=dtype)
 

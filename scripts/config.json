@@ -7,16 +7,16 @@
     "dataset_dir": "D:/dev/astrocyte-dataset/",
     "dataset_name": "Astrocytes_dataset_2025",
     "images_subdirectory": "images/all_images/",
-    "annotation_file_path": "D:/dev/astrocyte-dataset/Astrocytes_dataset_2025/annotations/dataset_annotation.json"
+    "annotation_file_path": "D:\\dev\\astrocyte-dataset\\Astrocytes_dataset_2025\\annotations\\dataset_annotation.json"
   },
   "Model": {
     "model_name": "maskrcnn_resnet50_fpn_v2"
   },
   "Training_settings": {
     "batch_size": 4,
-    "number_of_epochs": 60,
-    "number_of_workers": 4,
-    "train_data_size": 256,
+    "number_of_epochs": 400,
+    "number_of_workers": 8,
+    "train_data_size": 512,
     "training_split_ratio": 0.8,
     "initial_learning_rate": 1e-3,
     "model_path": "model.pth",
@@ -24,11 +24,11 @@
     "image_height": 520,
     "image_width": 696,
     "class_names": ["background", "cell"],
-    "pretrained": true
+    "pretrained": false
   },
   "Prediction_settings": {
     "threshold": 0.5,
-    "prediction_model_path": "D:/dev/image_segmentation_pr/pytorch-mask-r-cnn-instance-segmentation/2025-06-05_12-38-22/maskrcnn_resnet50_fpn_v2.pth",
+    "prediction_model_path": "D:/dev/image_segmentation_pr/pytorch-mask-r-cnn-instance-segmentation/2025-08-28_20-43-03/maskrcnn_resnet50_fpn_v2.pth",
     "image_paths_config_file": "D:/dev/astrocyte-dataset/Astrocytes_dataset_2025/config/images_to_segment.json",
     "output_directory": "D:/dev/image_segmentation_pr/output/"
   },

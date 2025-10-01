@@ -15,7 +15,7 @@ import torch
 from torchvision.utils import draw_segmentation_masks
 from cjm_pytorch_utils.core import tensor_to_pil
 
-TRAIN_SZ = 256
+TRAIN_SZ = 512
 
 
 def rle2mask(uncompressed_rle):
@@ -124,7 +124,7 @@ def get_image_files(img_dir: Path,  # The directory to search for image files
 
     return img_paths
 
-
+fill_color = (180)
 # Create a RandomIoUCrop object
 iou_crop = CustomRandomIoUCrop(min_scale=0.5,
                                max_scale=1,
@@ -132,24 +132,28 @@ iou_crop = CustomRandomIoUCrop(min_scale=0.5,
                                max_aspect_ratio=1.5,
                                sampler_options=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
                                trials=60,
-                               jitter_factor=0.1)
+                               jitter_factor=0.1
+                               )
 
 # Create a `ResizeMax` object
 resize_max = ResizeMax(max_sz=TRAIN_SZ)
 
+
 # Create a `PadSquare` object
-pad_square = PadSquare(shift=True, fill=135)
+pad_square = PadSquare(shift=True, fill=fill_color)
 
 data_aug_tfms = transforms.Compose(
     transforms=[
         iou_crop,
-        transforms.ColorJitter(
-                brightness=(0.9, 1.1),
-                contrast=(0.9, 1.1)
-        ),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.5),
-        # transforms.RandomRotation(degrees=90)
+        transforms.RandomRotation(degrees=180, fill=fill_color),
+
+        resize_max,
+
+        pad_square,
+
+        transforms.ColorJitter(contrast=(0.9, 1.1)),
     ],
 )
 
@@ -197,26 +201,15 @@ def verify_dataset(dataset, clss_names, font_file, ite=1):
     pd.Series({
         'Training dataset size:': len(dataset),
     }).to_frame().style.hide(axis='columns')
-
-    for i in range(ite):
-        dataset_sample = dataset[random.randint(0, len(clss_names) - 1)]
-
-        # Generate a list of colors with a length equal to the number of labels
-        colors = distinctipy.get_colors(len(clss_names))
-
-        # Make a copy of the color map in integer format
-        int_colors = [tuple(int(c * 255) for c in color) for color in colors]
-
-        # Get colors for dataset sample
-        sample_colors = [int_colors[int(i.item())] for i in dataset_sample[1]['labels']]
+    for i in range(len(dataset)):
+        dataset_sample = dataset[i]
 
         # Annotate the sample image with segmentation masks
         annotated_tensor = draw_segmentation_masks(
             image=(dataset_sample[0] * 255).to(dtype=torch.uint8),
             masks=dataset_sample[1]['masks'],
             alpha=0.3,
-            # colors=sample_colors
         )
 
         image = tensor_to_pil(annotated_tensor)
-        image.show()
+        image.show(title="TEST")
