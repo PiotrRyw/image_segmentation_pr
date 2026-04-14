@@ -1,3 +1,6 @@
+import math
+from typing import Tuple
+
 import numpy as np
 import pandas as pd
 import torch
@@ -10,8 +13,66 @@ from torchvision.tv_tensors import Mask, BoundingBoxes
 from torchvision.utils import draw_segmentation_masks, draw_bounding_boxes
 import torch.nn.functional as F
 
+from scipy.ndimage import distance_transform_edt
 from scripts.preprocess_images import preprocess
+import cv2
 
+VERBOSE = False
+
+def compute_iou(mask1, mask2):
+    m1 = mask1.cpu().numpy().astype(bool)
+    m2 = mask2.cpu().numpy().astype(bool)
+
+    intersection = np.logical_and(m1, m2).sum()
+    union = np.logical_or(m1, m2).sum()
+
+    return intersection / union if union > 0 else 0
+
+def calculate_geometry_data(tensor, scale):
+    geometry_data = []
+
+    dims = tensor[0].size()
+    img_area = dims[0] * dims[1]
+
+    real_world_pixel_length = scale / dims[0]
+    image_real_world_area = img_area * real_world_pixel_length**2
+
+    if VERBOSE:
+        print(f"real_world_pixel_length = {real_world_pixel_length}")
+
+    for cell_mask in tensor:
+        cell_area = torch.sum(cell_mask)
+        cell_area_in_proportion = cell_area / img_area
+        real_world_cell_area = image_real_world_area * cell_area_in_proportion
+        pi = math.pi
+        circle_approx_diameter = 2 * math.sqrt(real_world_cell_area / pi)
+
+        mask = cell_mask.detach().cpu().numpy()
+        mask = (mask > 0.5).astype("uint8")
+        middle = cv2.moments(mask)
+        if middle["m00"] != 0:
+            cX = int(middle["m10"] / middle["m00"])
+            cY = int(middle["m01"] / middle["m00"])
+        else:
+            cX, cY = 0, 0  #
+
+        dist = distance_transform_edt(mask)
+        dist_approx_radius = dist.max()
+        dist_approx_diameter = 2 * dist_approx_radius * real_world_pixel_length
+
+        if VERBOSE:
+            print(
+                f"cell area = {real_world_cell_area}; img area = {img_area}; percentage = {cell_area_in_proportion * 100}, diameter = {circle_approx_diameter}, centroid = {cX}, {cY}, dis diameter: {dist_approx_diameter}, ratio: {circle_approx_diameter/dist_approx_diameter}")
+
+        geometry_data.append(
+            (float(real_world_cell_area),
+            circle_approx_diameter,
+            float(dist_approx_diameter),
+            cX,
+            cY,
+            ),
+        )
+    return geometry_data
 
 def segment_image(model, image_path, model_settings, output_file_path):
     class_names = model_settings["class_names"]
@@ -32,7 +93,8 @@ def segment_image(model, image_path, model_settings, output_file_path):
         "Min Image Scale:": min_img_scale,
         "Input Image Size:": input_img.size
     }).to_frame().style.hide(axis='columns')
-    print(temp.to_string())
+    if VERBOSE:
+        print(temp.to_string())
 
     # Create a mapping from class names to class indices
     class_to_idx = {c: i for i, c in enumerate(class_names)}
@@ -66,7 +128,7 @@ def segment_image(model, image_path, model_settings, output_file_path):
     pred_labels = [class_names[int(label)] for label in model_output[0]['labels'][scores_mask]]
 
     # Extract the confidence scores
-    pred_scores = model_output[0]['scores']
+    pred_scores = model_output[0]['scores'][scores_mask]
 
     # Scale and stack the predicted segmentation masks
     pred_masks = F.interpolate(model_output[0]['masks'][scores_mask], size=input_img.size[::-1])
@@ -77,6 +139,35 @@ def segment_image(model, image_path, model_settings, output_file_path):
         input_img.show()
     else:
         pred_masks = torch.concat([Mask(torch.where(mask >= threshold, 1, 0), dtype=torch.bool) for mask in pred_masks])
+
+        # deleting duplicates
+        def create_filter_mask(prediction_masks):
+            iou_threshold = 0.3
+            keep = np.ones(len(prediction_masks), dtype=bool)
+            for i in range(len(prediction_masks)):
+                if not keep[i]:
+                    continue
+
+                for j in range(i + 1, len(prediction_masks)):
+                    if not keep[j]:
+                        continue
+
+                    iou = compute_iou(prediction_masks[i], prediction_masks[j])
+
+                    if iou > iou_threshold:
+                        if pred_scores[i] < pred_scores[j]:
+                            keep[i] = False
+                            break
+                        else:
+                            keep[j] = False
+            return keep
+
+        keep = create_filter_mask(pred_masks)
+
+        pred_masks = pred_masks[keep]
+        pred_labels = [pred_labels[i] for i in keep]
+        pred_bboxes = pred_bboxes[keep]
+        pred_scores = pred_scores[keep]
 
         # Convert the test images to a tensor
         img_tensor = transforms.PILToTensor()(input_img)
@@ -91,17 +182,22 @@ def segment_image(model, image_path, model_settings, output_file_path):
         #     labels=pred_labels,
         # )
 
-        # Print the prediction data as a Pandas DataFrame for easy formatting
+        geometry_cell_data = calculate_geometry_data(pred_masks, model_settings["scale_um"])
+        centers = [(int(x[3]), int(x[4]), float(x[2])) for x in geometry_cell_data]
+
         predictions = f"""
         Predicted BBoxes: {[f'{label}:{bbox}' for label, bbox in
                                   zip(pred_labels, pred_bboxes.round(decimals=3).numpy())]}
-        Confidence Scores: {[f'{label}: {prob * 100:.2f}%' for label, prob in zip(pred_labels, pred_scores)]}                          
+        Confidence Scores: {[f'{label}: {prob * 100:.2f}%' for label, prob in zip(pred_labels, pred_scores)]}
+        Geometry Data: {[f'{label}: {area}' for label, area in zip(pred_labels, geometry_cell_data)]}                   
         """
-        print(predictions)
 
-        print(f"Number of segmentations: {len(pred_masks)}")
-        print(f"Number of bboxes: {len(pred_bboxes)}")
-        print(f"Number of classifications: {len(pred_labels)}")
+        if VERBOSE:
+            print(predictions)
+
+            print(f"Number of segmentations: {len(pred_masks)}")
+            print(f"Number of bboxes: {len(pred_bboxes)}")
+            print(f"Number of classifications: {len(pred_labels)}")
 
         image_segmented = tensor_to_pil(annotated_tensor)
         # Image.fromarray(np.hstack((np.array(input_img), np.array(image_segmented)))).show()
@@ -121,8 +217,29 @@ def segment_image(model, image_path, model_settings, output_file_path):
 
         img = Image.fromarray(np.hstack((np.array(reference_image), np.array(segmented_image))))
 
+        draw = ImageDraw.Draw(img)
+
+        # shift for right-side image (segmented image)
+        x_offset = new_width  # because of side-by-side stacking
+
+        for (x, y, diameter) in centers:
+            r = 3
+            xy = (
+                    x + x_offset + padding - r,
+                    y + padding - r,
+                    x + x_offset + padding + r,
+                    y + padding + r
+                )
+            draw.ellipse(
+                xy,
+                fill=(255, 0, 0)
+            )
+            draw.text(
+                (x + x_offset + padding, y + padding),
+                f"d: {diameter:.2f}",
+            )
+
         image_text = ImageDraw.Draw(img)
         image_text.text((2*width, 10), f"{len(pred_masks)}", fill=(0,0,0))
 
         img.save(output_file_path)
-
