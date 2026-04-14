@@ -55,6 +55,7 @@ class ImageSegApplication:
         self.model_ops.state["image_paths_config_file"] = temp["Prediction_settings"]["image_paths_config_file"]
         self.model_ops.state["class_names"] = temp["Training_settings"]["class_names"]
         self.model_ops.state["output_directory"] = temp["Prediction_settings"]["output_directory"]
+        self.model_ops.state["scale_um"] = temp["Prediction_settings"]["scale_um"]
 
         orientation_corr = OrientationCorrection()
         orientation_corr.define_height_width(

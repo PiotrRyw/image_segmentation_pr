@@ -68,7 +68,8 @@ class State:
             "orientation_corr": OrientationCorrection(),
             "model_name": "",
             "pretrained": False,
-            "output_directory": ""
+            "output_directory": "",
+            "scale_um": 1,
         }
         keys = self._state_dict.keys()
         self._is_set = dict(zip(keys, [False for _ in range(len(keys))]))
@@ -389,7 +390,7 @@ class ModelOps:
         images_paths = []
         with open(self.state["image_paths_config_file"], 'r') as file:
             temp = json.load(file)
-            images_paths = [img_path["file_path"] for img_path in temp["images"]]
+            images_paths = temp["images"]
         for i, image_to_segment_path in enumerate(images_paths):
             print(image_to_segment_path)
             # output_image_file_path = self.state["output_directory"] + str(i) + ".png"
@@ -407,13 +408,14 @@ class ModelOps:
             "class_names": self.state["class_names"],
             "train_size": self.state["train_data_size"],
             "device": self.state["device"],
-            "threshold": self.state["prediction_threshold"]
+            "threshold": self.state["prediction_threshold"],
+            "scale_um": self.state["scale_um"]
         }
 
         images_paths = []
         with open(self.state["image_paths_config_file"], 'r') as file:
             temp = json.load(file)
-            images_paths = [img_path["file_path"] for img_path in temp["images"]]
+            images_paths = temp["images"]
 
         for i, image_to_segment_path in enumerate(images_paths):
 
