@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from cjm_pil_utils.core import resize_img
 from cjm_pytorch_utils.core import move_data_to_device, tensor_to_pil
 from distinctipy import distinctipy
@@ -241,5 +241,37 @@ def segment_image(model, image_path, model_settings, output_file_path):
 
         image_text = ImageDraw.Draw(img)
         image_text.text((2*width, 10), f"{len(pred_masks)}", fill=(0,0,0))
+
+        # add scale
+        pixels_per_um = width / model_settings["scale_um"]
+        scale_um = 50
+        scale_px = int(scale_um * pixels_per_um)
+
+        bar_height = 3
+
+        # position (bottom-left of segmented image)
+        x_start = x_offset + padding + 20
+        y_start = new_height - padding - 20
+
+        x_end = x_start + scale_px
+        y_end = y_start
+
+        # draw line
+        draw.line([(x_start, y_start), (x_end, y_end)], fill=(0, 0, 0), width=bar_height)
+
+        # add text above the bar
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", 16)
+        except:
+            font = None  # fallback
+
+        label = f"{scale_um} µm" if font else f"{scale_um} um"
+
+        draw.text(
+            (x_start, y_start - 15),
+            label,
+            fill=(0, 0, 0),
+            font=font
+        )
 
         img.save(output_file_path)
