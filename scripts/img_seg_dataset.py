@@ -157,9 +157,9 @@ class DatasetUtils:
         with open("cached.json", "r") as file:
             temp = json.load(file)
         if file_path in temp:
-            return temp[file_path]
+            return file_path, temp[file_path]
         else:
-            return None
+            return None, None
 
     @classmethod
     def cache_result(cls, original_file_path, data: pd.DataFrame):
@@ -261,13 +261,13 @@ class DatasetUtils:
         # pd.set_option('display.max_columns', None)
         # pd.set_option('display.max_rows', None)
 
-        temp = cls.check_cached(annotation_file_path)
+        temp, mapped_temp = cls.check_cached(annotation_file_path)
         _flag_bad = False
         if temp:  # is not None
             try:
-                with open(temp, "r") as file:
+                with open(mapped_temp, "r") as file:
                     annotation_df = pd.read_json(file)
-                print(f"Loaded cached file {temp, annotation_file_path}")
+                print(f"Loaded cached file {mapped_temp, annotation_file_path}")
             except FileNotFoundError:
                 _flag_bad = True
                 cls.remove_from_cache(temp)
